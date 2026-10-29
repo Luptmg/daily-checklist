@@ -713,6 +713,8 @@ async function failTask(){
   const reason=comment.trim();
   if(!reason){msg('Нужно указать причину, почему пункт не выполнен.','notice error');return;}
   const oldComment=state.comments[taskIndex];
+  const oldCompleted=state.completed;
+  const oldCompletedAt=state.completedAt;
   state.comments[taskIndex]=reason;
   state.answers[taskIndex]=false;
   state.completed=state.answers.every((v,i)=>v||!!String(state.comments?.[i]||'').trim());
@@ -723,11 +725,11 @@ async function failTask(){
     renderTask();
     msg('Причина сохранена. Можно перейти к следующему или предыдущему пункту.','notice success');
   }catch(err){
-    delete state.comments[taskIndex];
-    if(oldComment)state.comments[taskIndex]=oldComment;
-    state.completed=false;
-    $('failTaskButton').disabled=false;
-    $('done').disabled=false;
+    if(oldComment===undefined)delete state.comments[taskIndex];
+    else state.comments[taskIndex]=oldComment;
+    state.completed=oldCompleted;
+    state.completedAt=oldCompletedAt;
+    renderTask();
     msg('Не удалось сохранить причину. Проверь подключение и права доступа: '+(err.message||err),'notice error');
   }
 }
