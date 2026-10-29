@@ -73,7 +73,6 @@ th{background:var(--table-head)}
 <header>
   <h1>Мой рабочий день</h1>
   <p id="today"></p>
-  <button id="themeToggle" class="theme-toggle" type="button" onclick="toggleTheme()">Тёмная тема</button>
   <button id="settingsToggle" class="settings-toggle" type="button" aria-label="Настройки" aria-expanded="false" onclick="toggleSettingsMenu(event)">🔧</button>
   <div id="settingsMenu" class="settings-menu hidden">
     <button class="secondary" type="button" onclick="openPasswordFromSettings()">Сменить пароль</button>
@@ -280,17 +279,10 @@ $('today').textContent=dateLabel(todayKey());
 function applyTheme(theme){
   const chosen=theme==='dark'?'dark':'light';
   document.documentElement.dataset.theme=chosen;
-  const b=$('themeToggle');
-  if(b)b.textContent=chosen==='dark'?'☀️ Светлая тема':'🌙 Тёмная тема';
   const meta=document.querySelector('meta[name="theme-color"]');
   if(meta)meta.content=chosen==='dark'?'#171f30':'#2457c5';
 }
-function toggleTheme(){
-  const next=document.documentElement.dataset.theme==='dark'?'light':'dark';
-  localStorage.setItem('daily-checklist-theme',next);
-  applyTheme(next);
-}
-applyTheme(localStorage.getItem('daily-checklist-theme')||'light');
+applyTheme('light');
 
 function hidePages(){
   ['setup','home','work','historyPage','adminPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
@@ -327,10 +319,12 @@ function hideApp(){
   closeSettingsMenu();
   $('app').classList.add('hidden');
   $('auth').classList.remove('hidden');
+  $('settingsToggle').classList.add('hidden');
 }
 function showApp(){
   $('auth').classList.add('hidden');
   $('app').classList.remove('hidden');
+  $('settingsToggle').classList.remove('hidden');
   $('adminNav').classList.toggle('hidden',profile?.role!=='admin');
   $('notificationsSettings').classList.toggle('hidden',profile?.role!=='employee');
 }
