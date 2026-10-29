@@ -101,6 +101,11 @@ th{background:var(--table-head)}
         <h2>Разделы чек-листа</h2>
         <div id="identity" class="muted"></div>
         <div id="checkinArea"></div>
+        <div class="card">
+          <h2>Напоминания о порядке</h2>
+          <p class="muted">Получай push-напоминания в 12:00 и 16:00 по местному времени магазина, пока рабочий день начат.</p>
+          <button id="pushButton" class="secondary" type="button" onclick="togglePushNotifications()" style="width:100%">Включить уведомления</button>
+        </div>
         <p class="muted">Выбери нужный раздел. Незавершённый раздел можно продолжить позже.</p>
         <div id="sections"></div>
       </div>
