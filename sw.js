@@ -8,8 +8,6 @@ self.addEventListener('push', event => {
   const title = payload.title || 'Напоминание о порядке';
   const options = {
     body: payload.body || 'Пора проверить порядок в торговом зале и на рабочем месте.',
-    icon: './icon-192.png',
-    badge: './icon-192.png',
     data: { url: payload.url || './' },
     tag: payload.tag || 'daily-checklist-reminder',
     renotify: false
