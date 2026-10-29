@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -11,26 +12,29 @@ body{margin:0;background:#f3f5f4;color:#202824;font:16px Arial,sans-serif}
 header{background:#176b4d;color:white;padding:22px 18px}
 header h1{font-size:23px;margin:0 0 6px}
 header p{margin:0;opacity:.9}
-main{max-width:620px;margin:auto;padding:16px}
+main{max-width:650px;margin:auto;padding:16px}
 .card{background:white;padding:18px;border-radius:16px;margin-bottom:14px;box-shadow:0 2px 10px #0000000b}
 h2{font-size:19px;margin:0 0 14px}
-input{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid #ccd5cf;border-radius:10px;font-size:16px}
+input[type=text]{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid #ccd5cf;border-radius:10px;font-size:16px}
 button{border:0;border-radius:11px;padding:13px 16px;font-size:16px;font-weight:600;cursor:pointer}
 .primary{background:#176b4d;color:white;width:100%}
 .secondary{background:#e6eee9;color:#176b4d}
-button:disabled{opacity:.45}
-.muted{color:#68736c;font-size:14px}
-.task{font-size:17px;line-height:1.5;margin:14px 0}
-.check{display:flex;align-items:center;gap:12px;background:#eef5f0;padding:16px;border-radius:12px;margin-top:18px}
-.check input{width:24px;height:24px;margin:0;flex-shrink:0}
-.progress{height:7px;background:#e0e7e2;border-radius:10px;overflow:hidden;margin:12px 0}
-.progress div{height:100%;background:#24966a;width:0}
-.hidden{display:none!important}
 .nav{display:flex;gap:10px;margin-bottom:14px}
 .nav button{flex:1}
-.history-item{padding:13px 0;border-bottom:1px solid #e6eae7}
-.status{font-size:20px;margin-right:8px}
-.small{font-size:13px;color:#68736c}
+.muted{color:#68736c;font-size:14px;line-height:1.5}
+.hidden{display:none!important}
+.section-button{display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;background:#eef5f0;color:#202824;text-align:left;margin:10px 0;padding:16px}
+.section-button strong{display:block;font-size:17px}
+.section-button small{display:block;font-weight:normal;color:#68736c;margin-top:5px}
+.status{font-size:20px;white-space:nowrap}
+.progress{height:7px;background:#e0e7e2;border-radius:10px;overflow:hidden;margin:12px 0}
+.progress div{height:100%;background:#24966a;width:0}
+.task{font-size:17px;line-height:1.55;margin:18px 0}
+.check{display:flex;align-items:center;gap:12px;background:#eef5f0;padding:16px;border-radius:12px;margin-top:18px}
+.check input{width:24px;height:24px;flex-shrink:0}
+.history-item{padding:14px 0;border-bottom:1px solid #e6eae7}
+.small{font-size:13px;color:#68736c;line-height:1.6}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:center}
 </style>
 </head>
 <body>
@@ -38,58 +42,64 @@ button:disabled{opacity:.45}
   <h1>Мой рабочий день</h1>
   <p id="today"></p>
 </header>
+
 <main>
   <div class="nav">
-    <button class="secondary" onclick="showHome()">＋ Новый чек-лист</button>
+    <button class="secondary" onclick="goHome()">Главная</button>
     <button class="secondary" onclick="showHistory()">История</button>
   </div>
 
-  <section id="home">
-    <div class="card" id="start">
-      <h2>Начало рабочего дня</h2>
-      <p class="muted">Заполни данные перед началом проверки.</p>
-      <input id="seller" placeholder="ФИО продавца" autocomplete="name">
-      <input id="store" placeholder="ТЦ / магазин">
-      <button class="primary" onclick="startChecklist()">Начать чек-лист</button>
-    </div>
+  <section id="setup" class="card">
+    <h2>Рабочий день</h2>
+    <p class="muted">Укажи данные один раз. В течение дня можно открывать разделы в любом порядке.</p>
+    <input type="text" id="seller" placeholder="ФИО продавца">
+    <input type="text" id="store" placeholder="ТЦ / магазин">
+    <button class="primary" onclick="startDay()">Начать рабочий день</button>
+  </section>
 
-    <div class="card hidden" id="work">
-      <p class="muted" id="identity"></p>
-      <h2 id="section"></h2>
-      <div id="count" class="muted"></div>
-      <div class="progress"><div id="bar"></div></div>
-      <div id="task" class="task"></div>
-      <label class="check">
-        <input type="checkbox" id="done" onchange="completeTask()">
-        <span>Выполнено</span>
-      </label>
-      <p class="muted" id="hint">Отмечай пункт после выполнения — откроется следующий.</p>
+  <section id="home" class="hidden">
+    <div class="card">
+      <h2>Разделы чек-листа</h2>
+      <div id="identity" class="muted"></div>
+      <p class="muted">Выбери нужный раздел. Незавершённый раздел можно продолжить позже.</p>
+      <div id="sections"></div>
     </div>
-
-    <div class="card hidden" id="confirm">
-      <h2>Все пункты выполнены!</h2>
+    <div id="finalConfirm" class="card hidden">
+      <h2>Все разделы завершены!</h2>
       <p>Подтверждаю достоверность заполненных данных</p>
-      <button class="primary" onclick="finishChecklist()">Да</button>
+      <button class="primary" onclick="finishDay()">Да</button>
     </div>
-
-    <div class="card hidden" id="thanks">
+    <div id="finished" class="card hidden">
       <h2>Спасибо за еще один рабочий день!</h2>
-      <p>Чек-лист сохранён в истории на этом устройстве.</p>
-      <button class="primary" onclick="newChecklist()">Новый чек-лист</button>
+      <p>Все разделы завершены и сохранены в истории.</p>
     </div>
   </section>
 
-  <section id="history" class="hidden">
-    <div class="card">
-      <h2>История чек-листов</h2>
-      <div id="historyList"></div>
+  <section id="work" class="card hidden">
+    <div class="row">
+      <h2 id="sectionTitle"></h2>
+      <button class="secondary" onclick="goHome()">Назад</button>
     </div>
+    <div id="sectionIdentity" class="muted"></div>
+    <div id="count" class="muted"></div>
+    <div class="progress"><div id="bar"></div></div>
+    <div id="task" class="task"></div>
+    <label class="check">
+      <input type="checkbox" id="done" onchange="completeTask()">
+      <span>Выполнено</span>
+    </label>
+    <p id="hint" class="muted">После отметки автоматически откроется следующий пункт.</p>
+  </section>
+
+  <section id="historyPage" class="card hidden">
+    <h2>История чек-листов</h2>
+    <div id="historyList"></div>
   </section>
 </main>
 
 <script>
 const sections = [
- {name:"Утро", tasks:[
+ {name:"Утро",tasks:[
  "Приход: СТРОГО за 15 минут до открытия ТЦ (9:45)",
  "Дресс-код: строго согласно стандартам (белая рубашка, черные брюки, черный пиджак, черные туфли)",
  "Освещение: Включены и работают все лампы, витрина, вывеска, подиумы, подсветка",
@@ -100,118 +110,186 @@ const sections = [
  "Битрикс24: Изучена вся новая информация.",
  "Отчетность: Корректно заполнены таблицы за прошлый период (Свод, Заказы, Товар со склада, План мероприятий, Воронка, Табель)."
  ]},
- {name:"В течение дня", tasks:[
+ {name:"В течение дня",tasks:[
  "Порядок в зале: Нет еды, напитков и посторонних предметов.",
  "Рабочее место: Стол и тумба принтера в порядке, документы и бумаги убраны.",
  "Клиенты: Отправлены SMS по шаблонам всем клиентам в зависимости от ситуации."
  ]},
- {name:"Вечер", tasks:[
+ {name:"Вечер",tasks:[
  "Режим работы: Закрытие строго по графику работы ТЦ.",
  "Инкассация: Выполнена в тот же день.",
  "Касса: Расход по кассе проведён в тот же день."
  ]}
 ];
 
-const allTasks = sections.flatMap((s,si)=>s.tasks.map(t=>({section:s.name,text:t,si})));
-const key="dailyChecklistHistory_v1";
-let current=null;
-let index=0;
-let checked=[];
+const STORAGE_KEY="dailyChecklistData_v2";
+let day=null;
+let activeSection=0;
+let taskIndex=0;
 
-function localDate(){
+function todayKey(){
  const d=new Date();
  return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
-function dateLabel(date=localDate()){
+function dateLabel(date=todayKey()){
  return new Date(date+"T12:00:00").toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric"});
 }
 document.getElementById("today").textContent=dateLabel();
 
-function records(){
- try{return JSON.parse(localStorage.getItem(key)||"[]")}catch(e){return []}
+function loadData(){
+ try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")}catch(e){return []}
 }
-function saveRecords(items){localStorage.setItem(key,JSON.stringify(items))}
-function showHome(){
- document.getElementById("history").classList.add("hidden");
+function saveData(list){localStorage.setItem(STORAGE_KEY,JSON.stringify(list))}
+function saveDay(){
+ if(!day)return;
+ const list=loadData();
+ const pos=list.findIndex(x=>x.id===day.id);
+ if(pos>=0)list[pos]=day;
+ else list.unshift(day);
+ saveData(list);
+}
+function hideAll(){
+ ["setup","home","work","historyPage"].forEach(id=>document.getElementById(id).classList.add("hidden"));
+}
+function goHome(){
+ hideAll();
+ if(!day){
+  document.getElementById("setup").classList.remove("hidden");
+  return;
+ }
  document.getElementById("home").classList.remove("hidden");
+ renderHome();
 }
-function showHistory(){
- document.getElementById("home").classList.add("hidden");
- document.getElementById("history").classList.remove("hidden");
- renderHistory();
-}
-function startChecklist(){
+function startDay(){
  const seller=document.getElementById("seller").value.trim();
  const store=document.getElementById("store").value.trim();
  if(!seller||!store){alert("Укажи ФИО продавца и ТЦ / магазин.");return}
- current={id:Date.now(),date:localDate(),seller,store,completed:false,answers:[]};
- index=0;checked=[];
- document.getElementById("start").classList.add("hidden");
- document.getElementById("thanks").classList.add("hidden");
- document.getElementById("confirm").classList.add("hidden");
+ day={
+  id:todayKey()+"_"+Date.now(),
+  date:todayKey(),
+  seller:seller,
+  store:store,
+  sections:sections.map(s=>({answers:s.tasks.map(()=>false),completed:false})),
+  finished:false,
+  confirmed:false
+ };
+ saveDay();
+ goHome();
+}
+function renderHome(){
+ document.getElementById("identity").textContent=day.seller+" · "+day.store+" · "+dateLabel(day.date);
+ const root=document.getElementById("sections");
+ root.innerHTML="";
+ sections.forEach((s,i)=>{
+  const state=day.sections[i];
+  const total=s.tasks.length;
+  const done=state.answers.filter(Boolean).length;
+  const complete=state.completed;
+  const button=document.createElement("button");
+  button.className="section-button";
+  button.innerHTML="<span><strong></strong><small></small></span><span class='status'></span>";
+  button.querySelector("strong").textContent=s.name;
+  button.querySelector("small").textContent=complete?"Раздел завершён":done>0?"Выполнено "+done+" из "+total+" — продолжить":"Пунктов: "+total;
+  button.querySelector(".status").textContent=complete?"✅":"🟡🟡🟡";
+  button.onclick=()=>openSection(i);
+  root.appendChild(button);
+ });
+ document.getElementById("finalConfirm").classList.toggle("hidden",!sections.every((s,i)=>day.sections[i].completed)||day.confirmed);
+ document.getElementById("finished").classList.toggle("hidden",!day.confirmed);
+}
+function openSection(i){
+ if(day.confirmed)return;
+ activeSection=i;
+ const state=day.sections[i];
+ taskIndex=state.answers.findIndex(v=>!v);
+ if(taskIndex<0)taskIndex=sections[i].tasks.length-1;
+ hideAll();
  document.getElementById("work").classList.remove("hidden");
  renderTask();
 }
 function renderTask(){
- const t=allTasks[index];
- document.getElementById("identity").textContent=current.seller+" · "+current.store;
- document.getElementById("section").textContent=t.section;
- document.getElementById("count").textContent="Пункт "+(index+1)+" из "+allTasks.length;
- document.getElementById("bar").style.width=(index/allTasks.length*100)+"%";
- document.getElementById("task").textContent=t.text;
- document.getElementById("done").checked=!!checked[index];
- document.getElementById("hint").textContent="Отмечай пункт после выполнения — откроется следующий.";
+ const s=sections[activeSection];
+ const state=day.sections[activeSection];
+ document.getElementById("sectionTitle").textContent=s.name;
+ document.getElementById("sectionIdentity").textContent=day.seller+" · "+day.store;
+ document.getElementById("count").textContent="Пункт "+(taskIndex+1)+" из "+s.tasks.length;
+ document.getElementById("bar").style.width=(state.answers.filter(Boolean).length/s.tasks.length*100)+"%";
+ document.getElementById("task").textContent=s.tasks[taskIndex];
+ document.getElementById("done").checked=state.answers[taskIndex];
+ document.getElementById("done").disabled=state.completed;
+ document.getElementById("hint").textContent=state.completed?"Этот раздел уже завершён.": "Отмечай пункт после выполнения — прогресс сохранится автоматически.";
 }
 function completeTask(){
- if(!document.getElementById("done").checked)return;
- checked[index]=true;
- current.answers=checked.slice();
- if(index<allTasks.length-1){index++;renderTask();}
- else{
-  document.getElementById("work").classList.add("hidden");
-  document.getElementById("confirm").classList.remove("hidden");
-  document.getElementById("bar").style.width="100%";
+ const box=document.getElementById("done");
+ if(!box.checked)return;
+ const state=day.sections[activeSection];
+ state.answers[taskIndex]=true;
+ const s=sections[activeSection];
+ if(state.answers.every(Boolean))state.completed=true;
+ saveDay();
+ if(state.completed){
+  alert("Раздел «"+s.name+"» завершён!");
+  goHome();
+  return;
  }
+ taskIndex=state.answers.findIndex(v=>!v);
+ renderTask();
 }
-function finishChecklist(){
- current.completed=true;
- current.finishedAt=new Date().toISOString();
- const list=records();
- list.unshift(current);
- saveRecords(list);
- document.getElementById("confirm").classList.add("hidden");
- document.getElementById("thanks").classList.remove("hidden");
+function finishDay(){
+ day.finished=true;
+ day.confirmed=true;
+ day.finishedAt=new Date().toISOString();
+ saveDay();
+ goHome();
 }
-function newChecklist(){
- current=null;index=0;checked=[];
- document.getElementById("seller").value="";
- document.getElementById("store").value="";
- document.getElementById("thanks").classList.add("hidden");
- document.getElementById("work").classList.add("hidden");
- document.getElementById("confirm").classList.add("hidden");
- document.getElementById("start").classList.remove("hidden");
- showHome();
-}
-function renderHistory(){
- const list=records();
+function showHistory(){
+ hideAll();
+ document.getElementById("historyPage").classList.remove("hidden");
  const root=document.getElementById("historyList");
  root.innerHTML="";
- if(!list.length){root.textContent="Пока нет сохранённых чек-листов.";return}
+ const list=loadData();
+ if(!list.length){root.textContent="История пока пуста.";return}
  list.forEach(item=>{
   const div=document.createElement("div");
   div.className="history-item";
-  const status=document.createElement("span");
-  status.className="status";
-  status.textContent=item.completed?"✅":"🟡🟡🟡";
   const title=document.createElement("strong");
   title.textContent=item.seller;
   const meta=document.createElement("div");
   meta.className="small";
   meta.textContent=dateLabel(item.date)+" · "+item.store;
-  div.append(status,title,meta);
+  div.append(title,meta);
+  sections.forEach((s,i)=>{
+   const line=document.createElement("div");
+   line.className="small";
+   const st=item.sections[i];
+   const completed=st&&st.completed;
+   const count=st?st.answers.filter(Boolean).length:0;
+   line.textContent=(completed?"✅":"🟡🟡🟡")+" "+s.name+": "+(completed?"завершён":"выполнено "+count+" из "+s.tasks.length);
+   div.appendChild(line);
+  });
+  if(item.confirmed){
+   const final=document.createElement("div");
+   final.className="small";
+   final.textContent="Подтверждение: Да";
+   div.appendChild(final);
+  }
   root.appendChild(div);
  });
 }
+function restoreToday(){
+ const list=loadData();
+ const found=list.find(x=>x.date===todayKey()&&!x.confirmed);
+ if(found){
+  day=found;
+  document.getElementById("seller").value=day.seller;
+  document.getElementById("store").value=day.store;
+  goHome();
+ }else{
+  day=null;
+  goHome();
+ }
+}
+restoreToday();
 </script>
 </body>
 </html>
