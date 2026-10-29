@@ -75,15 +75,16 @@ th{background:var(--table-head)}
   <p id="today"></p>
   <button id="settingsToggle" class="settings-toggle" type="button" aria-label="Настройки" aria-expanded="false" onclick="toggleSettingsMenu(event)">🔧</button>
   <div id="settingsMenu" class="settings-menu hidden">
-    <button class="secondary" type="button" onclick="openPasswordFromSettings()">Сменить пароль</button>
+    <p id="settingsLoginHint" class="settings-description">Войдите в аккаунт, чтобы получить доступ к настройкам.</p>
+    <button id="passwordSettingsButton" class="secondary" type="button" onclick="openPasswordFromSettings()">Сменить пароль</button>
     <div id="notificationsSettings">
       <div class="settings-divider"></div>
       <div class="settings-label">Уведомления</div>
       <p class="settings-description">Напоминания о порядке приходят в 12:00 и 16:00 по местному времени магазина, пока рабочий день начат.</p>
       <button id="pushButton" class="secondary" type="button" onclick="togglePushNotifications()">Включить уведомления</button>
     </div>
-    <div class="settings-divider"></div>
-    <button class="danger" type="button" onclick="signOut()">Выйти</button>
+    <div id="logoutSettingsDivider" class="settings-divider"></div>
+    <button id="logoutSettingsButton" class="danger" type="button" onclick="signOut()">Выйти</button>
   </div>
 </header>
 <main>
@@ -319,12 +320,19 @@ function hideApp(){
   closeSettingsMenu();
   $('app').classList.add('hidden');
   $('auth').classList.remove('hidden');
-  $('settingsToggle').classList.add('hidden');
+  $('settingsLoginHint').classList.remove('hidden');
+  $('passwordSettingsButton').classList.add('hidden');
+  $('notificationsSettings').classList.add('hidden');
+  $('logoutSettingsDivider').classList.add('hidden');
+  $('logoutSettingsButton').classList.add('hidden');
 }
 function showApp(){
   $('auth').classList.add('hidden');
   $('app').classList.remove('hidden');
-  $('settingsToggle').classList.remove('hidden');
+  $('settingsLoginHint').classList.add('hidden');
+  $('passwordSettingsButton').classList.remove('hidden');
+  $('logoutSettingsDivider').classList.remove('hidden');
+  $('logoutSettingsButton').classList.remove('hidden');
   $('adminNav').classList.toggle('hidden',profile?.role!=='admin');
   $('notificationsSettings').classList.toggle('hidden',profile?.role!=='employee');
 }
