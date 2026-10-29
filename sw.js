@@ -19,7 +19,7 @@ self.addEventListener('push', event => {
 
 self.addEventListener('notificationclick', event => {
   event.notification.close();
-  const target = new URL(event.notification.data?.url || './', self.location.origin).href;
+  const target = new URL(event.notification.data?.url || './', self.registration.scope).href;
   event.waitUntil(clients.matchAll({ type: 'window', includeUncontrolled: true }).then(list => {
     for (const client of list) {
       if (client.url.startsWith(self.location.origin) && 'focus' in client) {
