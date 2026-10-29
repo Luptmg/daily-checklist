@@ -14,7 +14,14 @@ body{margin:0;background:var(--page);color:var(--text);font:16px Arial,sans-seri
 header{background:var(--primary);color:white;padding:22px 170px 22px 18px;position:relative}
 header h1{font-size:23px;margin:0 0 6px}
 header p{margin:0;opacity:.9}
-.theme-toggle{position:absolute;right:16px;top:18px;background:#ffffff20;color:white;border:1px solid #ffffff70;padding:10px 12px;font-size:13px}
+.theme-toggle{position:absolute;right:76px;top:18px;background:#ffffff20;color:white;border:1px solid #ffffff70;padding:10px 12px;font-size:13px}
+.settings-toggle{position:absolute;right:16px;top:18px;background:#ffffff20;color:white;border:1px solid #ffffff70;padding:10px 12px;font-size:20px;line-height:1;min-width:44px}
+.settings-menu{position:absolute;z-index:20;right:16px;top:64px;width:min(320px,calc(100vw - 32px));padding:14px;background:var(--surface);color:var(--text);border:1px solid var(--border);border-radius:14px;box-shadow:0 8px 28px var(--shadow)}
+.settings-menu button{width:100%;margin-top:8px}
+.settings-menu .settings-label{font-weight:700;margin-bottom:4px}
+.settings-menu .settings-description{font-size:13px;color:var(--muted);line-height:1.45;margin:0 0 8px}
+.settings-menu .settings-divider{height:1px;background:var(--border);margin:12px 0}
+.settings-menu .danger{color:var(--danger-text)}
 main{max-width:900px;margin:auto;padding:16px}
 .card{background:var(--surface);padding:18px;border-radius:16px;margin-bottom:14px;box-shadow:0 2px 10px var(--shadow);border:1px solid var(--border)}
 h2{font-size:19px;margin:0 0 14px}
@@ -59,7 +66,7 @@ th{background:var(--table-head)}
 .actions button{flex:1}
 .arrival-cell{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .delete-cell button{font-size:13px;padding:9px 11px;white-space:nowrap}
-@media(max-width:560px){header{padding:18px 18px 70px}header h1{font-size:21px}.theme-toggle{left:18px;right:auto;top:auto;bottom:14px}main{padding:10px}.card{padding:14px}.nav button{font-size:13px;padding:11px 8px}}
+@media(max-width:560px){header{padding:18px 18px 70px}header h1{font-size:21px}.theme-toggle{left:18px;right:auto;top:auto;bottom:14px}.settings-toggle{right:18px;top:auto;bottom:14px}.settings-menu{right:12px;top:60px}main{padding:10px}.card{padding:14px}.nav button{font-size:13px;padding:11px 8px}}
 </style>
 </head>
 <body>
@@ -67,6 +74,18 @@ th{background:var(--table-head)}
   <h1>Мой рабочий день</h1>
   <p id="today"></p>
   <button id="themeToggle" class="theme-toggle" type="button" onclick="toggleTheme()">Тёмная тема</button>
+  <button id="settingsToggle" class="settings-toggle" type="button" aria-label="Настройки" aria-expanded="false" onclick="toggleSettingsMenu(event)">🔧</button>
+  <div id="settingsMenu" class="settings-menu hidden">
+    <button class="secondary" type="button" onclick="openPasswordFromSettings()">Сменить пароль</button>
+    <div id="notificationsSettings">
+      <div class="settings-divider"></div>
+      <div class="settings-label">Уведомления</div>
+      <p class="settings-description">Напоминания о порядке приходят в 12:00 и 16:00 по местному времени магазина, пока рабочий день начат.</p>
+      <button id="pushButton" class="secondary" type="button" onclick="togglePushNotifications()">Включить уведомления</button>
+    </div>
+    <div class="settings-divider"></div>
+    <button class="danger" type="button" onclick="signOut()">Выйти</button>
+  </div>
 </header>
 <main>
   <div id="statusMessage" class="notice hidden" role="status"></div>
@@ -89,8 +108,6 @@ th{background:var(--table-head)}
       <button class="secondary" onclick="goHome()">Главная</button>
       <button class="secondary" onclick="showHistory()">История</button>
       <button id="adminNav" class="secondary hidden" onclick="showAdmin()">Панель руководителя</button>
-      <button class="secondary" onclick="showPasswordChange()">Сменить пароль</button>
-      <button class="secondary" onclick="signOut()">Выйти</button>
     </div>
     <div id="setup" class="card hidden">
       <h2>Рабочий день</h2>
@@ -106,11 +123,6 @@ th{background:var(--table-head)}
         <div id="identity" class="muted"></div>
         <div id="checkinArea"></div>
         <div id="overallProgress"></div>
-        <div class="card">
-          <h2>Напоминания о порядке</h2>
-          <p class="muted">Получай push-напоминания в 12:00 и 16:00 по местному времени магазина, пока рабочий день начат.</p>
-          <button id="pushButton" class="secondary" type="button" onclick="togglePushNotifications()" style="width:100%">Включить уведомления</button>
-        </div>
         <p class="muted">Выбери нужный раздел. Незавершённый раздел можно продолжить позже.</p>
         <div id="sections"></div>
       </div>
@@ -276,7 +288,27 @@ applyTheme(localStorage.getItem('daily-checklist-theme')||'light');
 function hidePages(){
   ['setup','home','work','historyPage','adminPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
 }
+function toggleSettingsMenu(event){
+  if(event)event.stopPropagation();
+  const menu=$('settingsMenu');
+  const opening=menu.classList.contains('hidden');
+  menu.classList.toggle('hidden',!opening);
+  $('settingsToggle').setAttribute('aria-expanded',String(opening));
+}
+function closeSettingsMenu(){
+  $('settingsMenu')?.classList.add('hidden');
+  $('settingsToggle')?.setAttribute('aria-expanded','false');
+}
+function openPasswordFromSettings(){
+  closeSettingsMenu();
+  showPasswordChange();
+}
+document.addEventListener('click',event=>{
+  const menu=$('settingsMenu'),toggle=$('settingsToggle');
+  if(menu&&!menu.classList.contains('hidden')&&!menu.contains(event.target)&&!toggle.contains(event.target))closeSettingsMenu();
+});
 function showPasswordChange(){
+  closeSettingsMenu();
   clearMsg();
   hidePages();
   $('passwordPage').classList.remove('hidden');
@@ -285,6 +317,7 @@ function showPasswordChange(){
   $('confirmPassword').value='';
 }
 function hideApp(){
+  closeSettingsMenu();
   $('app').classList.add('hidden');
   $('auth').classList.remove('hidden');
 }
@@ -292,6 +325,7 @@ function showApp(){
   $('auth').classList.add('hidden');
   $('app').classList.remove('hidden');
   $('adminNav').classList.toggle('hidden',profile?.role!=='admin');
+  $('notificationsSettings').classList.toggle('hidden',profile?.role!=='employee');
 }
 
 $('loginForm').addEventListener('submit',async e=>{
