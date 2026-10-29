@@ -1,5 +1,4 @@
-
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
@@ -12,14 +11,15 @@ body{margin:0;background:#f3f5f4;color:#202824;font:16px Arial,sans-serif}
 header{background:#176b4d;color:white;padding:22px 18px}
 header h1{font-size:23px;margin:0 0 6px}
 header p{margin:0;opacity:.9}
-main{max-width:650px;margin:auto;padding:16px}
+main{max-width:760px;margin:auto;padding:16px}
 .card{background:white;padding:18px;border-radius:16px;margin-bottom:14px;box-shadow:0 2px 10px #0000000b}
 h2{font-size:19px;margin:0 0 14px}
-input[type=text]{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid #ccd5cf;border-radius:10px;font-size:16px}
+input,select{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid #ccd5cf;border-radius:10px;font-size:16px;background:white}
 button{border:0;border-radius:11px;padding:13px 16px;font-size:16px;font-weight:600;cursor:pointer}
 .primary{background:#176b4d;color:white;width:100%}
 .secondary{background:#e6eee9;color:#176b4d}
-.nav{display:flex;gap:10px;margin-bottom:14px}
+.danger{background:#fae8e6;color:#8b2922}
+.nav{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap}
 .nav button{flex:1}
 .muted{color:#68736c;font-size:14px;line-height:1.5}
 .hidden{display:none!important}
@@ -31,265 +31,795 @@ button{border:0;border-radius:11px;padding:13px 16px;font-size:16px;font-weight:
 .progress div{height:100%;background:#24966a;width:0}
 .task{font-size:17px;line-height:1.55;margin:18px 0}
 .check{display:flex;align-items:center;gap:12px;background:#eef5f0;padding:16px;border-radius:12px;margin-top:18px}
-.check input{width:24px;height:24px;flex-shrink:0}
+.check input{width:24px;height:24px;flex-shrink:0;margin:0}
 .history-item{padding:14px 0;border-bottom:1px solid #e6eae7}
 .small{font-size:13px;color:#68736c;line-height:1.6}
-.row{display:flex;justify-content:space-between;gap:10px;align-items:center}
+.row{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
+.pill{display:inline-block;border-radius:20px;padding:5px 9px;background:#e6eee9;color:#176b4d;font-size:12px}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:10px;border-bottom:1px solid #e6eae7;vertical-align:top}
+th{background:#f5f8f6}
+.notice{padding:12px;border-radius:10px;background:#fff4d8;color:#694d00;margin:10px 0}
+.success{background:#e6f5eb;color:#185b37}
+.error{background:#fde9e7;color:#8a241c}
+.actions{display:flex;gap:8px;flex-wrap:wrap}
+.actions button{flex:1}
 </style>
 </head>
 <body>
 <header>
-  <h1>Мой рабочий день</h1>
-  <p id="today"></p>
+<h1>Мой рабочий день</h1>
+<p id="today"></p>
 </header>
-
 <main>
-  <div class="nav">
-    <button class="secondary" onclick="goHome()">Главная</button>
-    <button class="secondary" onclick="showHistory()">История</button>
-  </div>
+<div id="statusMessage" class="notice hidden" role="status"></div>
 
-  <section id="setup" class="card">
-    <h2>Рабочий день</h2>
-    <p class="muted">Укажи данные один раз. В течение дня можно открывать разделы в любом порядке.</p>
-    <input type="text" id="seller" placeholder="ФИО продавца">
-    <input type="text" id="store" placeholder="ТЦ / магазин">
-    <button class="primary" onclick="startDay()">Начать рабочий день</button>
-  </section>
+<section id="configWarning" class="card hidden">
+<h2>Нужно настроить подключение</h2>
+<p>В коде не указаны публичные параметры Supabase. Проверь SUPABASE_URL и SUPABASE_ANON_KEY в начале скрипта. Используй только publishable/anon key, не service_role.</p>
+</section>
 
-  <section id="home" class="hidden">
-    <div class="card">
-      <h2>Разделы чек-листа</h2>
-      <div id="identity" class="muted"></div>
-      <p class="muted">Выбери нужный раздел. Незавершённый раздел можно продолжить позже.</p>
-      <div id="sections"></div>
-    </div>
-    <div id="finalConfirm" class="card hidden">
-      <h2>Все разделы завершены!</h2>
-      <p>Подтверждаю достоверность заполненных данных</p>
-      <button class="primary" onclick="finishDay()">Да</button>
-    </div>
-    <div id="finished" class="card hidden">
-      <h2>Спасибо за еще один рабочий день!</h2>
-      <p>Все разделы завершены и сохранены в истории.</p>
-    </div>
-  </section>
+<section id="auth" class="card hidden">
+<h2>Вход в приложение</h2>
+<p class="muted">Сотрудники и администраторы входят по email и паролю, созданным в Supabase Auth.</p>
+<form id="loginForm">
+<input id="login" type="email" autocomplete="username" placeholder="Email" required>
+<input id="password" type="password" autocomplete="current-password" placeholder="Пароль" required>
+<button class="primary" type="submit">Войти</button>
+</form>
+<p class="small">Регистрация из приложения отключена: учётные записи создаются администратором в Supabase Auth.</p>
+</section>
 
-  <section id="work" class="card hidden">
-    <div class="row">
-      <h2 id="sectionTitle"></h2>
-      <button class="secondary" onclick="goHome()">Назад</button>
-    </div>
-    <div id="sectionIdentity" class="muted"></div>
-    <div id="count" class="muted"></div>
-    <div class="progress"><div id="bar"></div></div>
-    <div id="task" class="task"></div>
-    <label class="check">
-      <input type="checkbox" id="done" onchange="completeTask()">
-      <span>Выполнено</span>
-    </label>
-    <p id="hint" class="muted">После отметки автоматически откроется следующий пункт.</p>
-  </section>
+<section id="app" class="hidden">
+<div class="nav">
+<button class="secondary" onclick="goHome()">Главная</button>
+<button class="secondary" onclick="showHistory()">История</button>
+<button id="adminNav" class="secondary hidden" onclick="showAdmin()">Панель руководителя</button>
+<button class="secondary" onclick="signOut()">Выйти</button>
+</div>
 
-  <section id="historyPage" class="card hidden">
-    <h2>История чек-листов</h2>
-    <div id="historyList"></div>
-  </section>
+<div id="setup" class="card hidden">
+<h2>Рабочий день</h2>
+<p class="muted">Выбери магазин, в котором работаешь сегодня. Если вышел на подмену, можно выбрать другой магазин.</p>
+<div id="employeeGreeting" class="muted"></div>
+<label for="store">Магазин</label>
+<select id="store" required></select>
+<button class="primary" onclick="startDay()">Начать рабочий день</button>
+</div>
+
+<section id="home" class="hidden">
+<div class="card">
+<h2>Разделы чек-листа</h2>
+<div id="identity" class="muted"></div>
+<div id="checkinArea"></div>
+<p class="muted">Выбери нужный раздел. Незавершённый раздел можно продолжить позже.</p>
+<div id="sections"></div>
+</div>
+<div id="finalConfirm" class="card hidden">
+<h2>Все разделы завершены!</h2>
+<p>Все отметки сохранены в Supabase.</p>
+<p class="muted">Отдельная финальная отметка пока не записывается: в текущих RLS-политиках нет разрешения на обновление workdays, а отдельная RPC-функция подтверждения не указана.</p>
+</div>
+<div id="finished" class="card hidden">
+<h2>Рабочий день подтверждён</h2>
+<p>Все разделы завершены и сохранены в общей базе.</p>
+</div>
+</section>
+
+<section id="work" class="card hidden">
+<div class="row">
+<h2 id="sectionTitle"></h2>
+<button class="secondary" onclick="goHome()">Назад</button>
+</div>
+<div id="sectionIdentity" class="muted"></div>
+<div id="count" class="muted"></div>
+<div class="progress"><div id="bar"></div></div>
+<div id="task" class="task"></div>
+<label class="check">
+<input type="checkbox" id="done" onchange="completeTask()">
+<span>Выполнено</span>
+</label>
+<p id="hint" class="muted">После отметки автоматически откроется следующий пункт.</p>
+</section>
+
+<section id="historyPage" class="card hidden">
+<h2>История чек-листов</h2>
+<div id="historyList"></div>
+</section>
+
+<section id="adminPage" class="card hidden">
+<div class="row">
+<h2>Панель руководителя</h2>
+<button class="secondary" onclick="loadAdmin()">Обновить</button>
+</div>
+<div class="row">
+<div style="flex:1;min-width:150px">
+<label for="adminDate">Дата</label>
+<input type="date" id="adminDate">
+</div>
+<div style="flex:1;min-width:150px">
+<label for="adminStore">Магазин</label>
+<select id="adminStore"><option value="">Все магазины</option></select>
+</div>
+</div>
+<div id="adminSummary" class="muted"></div>
+<div id="adminResults"></div>
+</section>
+</section>
 </main>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
+// Публичные настройки Supabase.
+// Никогда не помещай сюда service_role или секретный ключ.
+const SUPABASE_URL = "https://kaudclcgjcruwhydovtf.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_Vp4VYQttfWdS6t6XA08EGg_YPY9lt6y";
+
+const { createClient } = window.supabase || {};
+const configured = !!(
+  createClient &&
+  /^https:\/\/[^/]+\.supabase\.co$/.test(SUPABASE_URL) &&
+  SUPABASE_ANON_KEY.startsWith("sb_publishable_")
+);
+const sb = configured ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+
 const sections = [
- {name:"Утро",tasks:[
- "Приход: СТРОГО за 15 минут до открытия ТЦ (9:45)",
- "Дресс-код: строго согласно стандартам (белая рубашка, черные брюки, черный пиджак, черные туфли)",
- "Освещение: Включены и работают все лампы, витрина, вывеска, подиумы, подсветка",
- "Чистота: Кресла протерты от пыли (обивка, подлокотники, подголовник, пятилучья, колеса)",
- "Выкладка: Кресла расставлены по файлу «Принципы представленности» (все регулировки и расстояния соблюдены)",
- "Материалы: В наличии актуальные каталоги и раздаточные материалы",
- "Рабочий стол: Подготовлен (блокнот, ручка, телефон). Нет личных вещей, сумок, стаканов с водой/кофе.",
- "Битрикс24: Изучена вся новая информация.",
- "Отчетность: Корректно заполнены таблицы за прошлый период (Свод, Заказы, Товар со склада, План мероприятий, Воронка, Табель)."
- ]},
- {name:"В течение дня",tasks:[
- "Порядок в зале: Нет еды, напитков и посторонних предметов.",
- "Рабочее место: Стол и тумба принтера в порядке, документы и бумаги убраны.",
- "Клиенты: Отправлены SMS по шаблонам всем клиентам в зависимости от ситуации."
- ]},
- {name:"Вечер",tasks:[
- "Режим работы: Закрытие строго по графику работы ТЦ.",
- "Инкассация: Выполнена в тот же день.",
- "Касса: Расход по кассе проведён в тот же день."
- ]}
+ {
+  key:"morning",
+  name:"Утро",
+  tasks:[
+   "Приход: СТРОГО за 15 минут до открытия ТЦ (9:45)",
+   "Дресс-код: строго согласно стандартам (белая рубашка, черные брюки, черный пиджак, черные туфли)",
+   "Освещение: Включены и работают все лампы, витрина, вывеска, подиумы, подсветка",
+   "Чистота: Кресла протерты от пыли (обивка, подлокотники, подголовник, пятилучья, колеса)",
+   "Выкладка: Кресла расставлены по файлу «Принципы представленности» (все регулировки и расстояния соблюдены)",
+   "Материалы: В наличии актуальные каталоги и раздаточные материалы",
+   "Рабочий стол: Подготовлен (блокнот, ручка, телефон). Нет личных вещей, сумок, стаканов с водой/кофе.",
+   "Битрикс24: Изучена вся новая информация.",
+   "Отчетность: Корректно заполнены таблицы за прошлый период (Свод, Заказы, Товар со склада, План мероприятий, Воронка, Табель)."
+  ]
+ },
+ {
+  key:"day",
+  name:"В течение дня",
+  tasks:[
+   "Порядок в зале: Нет еды, напитков и посторонних предметов.",
+   "Рабочее место: Стол и тумба принтера в порядке, документы и бумаги убраны.",
+   "Клиенты: Отправлены SMS по шаблонам всем клиентам в зависимости от ситуации."
+  ]
+ },
+ {
+  key:"evening",
+  name:"Вечер",
+  tasks:[
+   "Режим работы: Закрытие строго по графику работы ТЦ.",
+   "Инкассация: Выполнена в тот же день.",
+   "Касса: Расход по кассе проведён в тот же день."
+  ]
+ }
 ];
 
-const STORAGE_KEY="dailyChecklistData_v2";
-let day=null;
-let activeSection=0;
-let taskIndex=0;
+let user = null;
+let profile = null;
+let employee = null;
+let stores = [];
+let day = null;
+let progress = {};
+let activeSection = 0;
+let taskIndex = 0;
+let dayStore = null;
 
-function todayKey(){
- const d=new Date();
- return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-}
-function dateLabel(date=todayKey()){
- return new Date(date+"T12:00:00").toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric"});
-}
-document.getElementById("today").textContent=dateLabel();
+const $ = id => document.getElementById(id);
 
-function loadData(){
- try{return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]")}catch(e){return []}
+function msg(text, type = "notice") {
+ const el = $("statusMessage");
+ el.textContent = text;
+ el.className = type;
+ el.classList.remove("hidden");
+ window.scrollTo({top:0,behavior:"smooth"});
 }
-function saveData(list){localStorage.setItem(STORAGE_KEY,JSON.stringify(list))}
-function saveDay(){
- if(!day)return;
- const list=loadData();
- const pos=list.findIndex(x=>x.id===day.id);
- if(pos>=0)list[pos]=day;
- else list.unshift(day);
- saveData(list);
+
+function clearMsg() {
+ $("statusMessage").classList.add("hidden");
 }
-function hideAll(){
- ["setup","home","work","historyPage"].forEach(id=>document.getElementById(id).classList.add("hidden"));
+
+function todayKey(tz) {
+ const d = new Date();
+ if (tz) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+   timeZone:tz,
+   year:"numeric",
+   month:"2-digit",
+   day:"2-digit"
+  }).formatToParts(d);
+  const p = Object.fromEntries(parts.map(x => [x.type,x.value]));
+  return `${p.year}-${p.month}-${p.day}`;
+ }
+ return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,"0")}-${String(d.getDate()).padStart(2,"0")}`;
 }
-function goHome(){
- hideAll();
- if(!day){
-  document.getElementById("setup").classList.remove("hidden");
+
+function dateLabel(date) {
+ if (!date) return "";
+ return new Date(date+"T12:00:00").toLocaleDateString("ru-RU", {
+  day:"numeric",month:"long",year:"numeric"
+ });
+}
+
+$("today").textContent = dateLabel(todayKey());
+
+function hidePages() {
+ ["setup","home","work","historyPage","adminPage"].forEach(id => $(id).classList.add("hidden"));
+}
+
+function hideApp() {
+ $("app").classList.add("hidden");
+ $("auth").classList.remove("hidden");
+}
+
+function showApp() {
+ $("auth").classList.add("hidden");
+ $("app").classList.remove("hidden");
+ $("adminNav").classList.toggle("hidden",profile?.role!=="admin");
+}
+
+$("loginForm").addEventListener("submit", async e => {
+ e.preventDefault();
+ clearMsg();
+ if (!sb) {
+  msg("Не удалось инициализировать Supabase. Проверь URL, публичный ключ и загрузку библиотеки.");
   return;
  }
- document.getElementById("home").classList.remove("hidden");
+ try {
+  const email = $("login").value.trim().toLowerCase();
+  const {error} = await sb.auth.signInWithPassword({
+   email,
+   password:$("password").value
+  });
+  if (error) throw error;
+  await boot();
+ } catch(err) {
+  msg("Не удалось войти: "+(err.message||"неизвестная ошибка"),"notice error");
+ }
+});
+
+async function signOut() {
+ if (sb) await sb.auth.signOut();
+ user=null;
+ profile=null;
+ employee=null;
+ day=null;
+ progress={};
+ hidePages();
+ hideApp();
+}
+
+async function boot() {
+ clearMsg();
+ const {data:{session},error} = await sb.auth.getSession();
+ if (error) throw error;
+ if (!session) {
+  hideApp();
+  return;
+ }
+ user=session.user;
+
+ const p=await sb.from("profiles")
+  .select("user_id,employee_id,role")
+  .eq("user_id",user.id)
+  .single();
+
+ if (p.error) throw new Error("Не удалось загрузить профиль: "+p.error.message);
+ profile=p.data;
+
+ if (!["admin","employee"].includes(profile.role)) {
+  throw new Error("У профиля неизвестная роль.");
+ }
+
+ if (profile.role==="employee") {
+  if (!profile.employee_id) throw new Error("У сотрудника не указан employee_id в profiles.");
+
+  const e=await sb.from("employees")
+   .select("id,full_name,primary_store_id,active")
+   .eq("id",profile.employee_id)
+   .single();
+
+  if (e.error) throw e.error;
+  if (!e.data.active) throw new Error("Учётная запись сотрудника отключена.");
+  employee=e.data;
+ } else {
+  employee=null;
+ }
+
+ const st=await sb.from("stores")
+  .select("id,name,city,timezone")
+  .order("name");
+
+ if (st.error) throw st.error;
+ stores=st.data||[];
+ fillStoreSelects();
+ showApp();
+
+ if (profile.role==="admin") {
+  hidePages();
+  $("adminPage").classList.remove("hidden");
+  $("adminDate").value=todayKey();
+  await loadAdmin();
+ } else {
+  await restoreToday();
+ }
+}
+
+function fillStoreSelects() {
+ const select=$("store");
+ select.innerHTML="";
+
+ stores.forEach(s => {
+  const o=document.createElement("option");
+  o.value=s.id;
+  o.textContent=`${s.name}${s.city?" · "+s.city:""}`;
+  select.append(o);
+ });
+
+ const a=$("adminStore");
+ a.innerHTML='<option value="">Все магазины</option>';
+
+ stores.forEach(s => {
+  const o=document.createElement("option");
+  o.value=s.id;
+  o.textContent=`${s.name}${s.city?" · "+s.city:""}`;
+  a.append(o);
+ });
+
+ if (employee?.primary_store_id) select.value=employee.primary_store_id;
+ $("employeeGreeting").textContent=employee?"Сотрудник: "+employee.full_name:"";
+}
+
+async function loadProgress(workdayId) {
+ const {data,error}=await sb.from("section_progress")
+  .select("workday_id,section_key,answers,completed_at,updated_at")
+  .eq("workday_id",workdayId);
+
+ if (error) throw error;
+ progress={};
+
+ for (const row of data||[]) {
+  const s=sections.find(x=>x.key===row.section_key);
+  if (s) {
+   progress[row.section_key]={
+    answers:Array.isArray(row.answers)?row.answers:s.tasks.map(()=>false),
+    completed:!!row.completed_at
+   };
+  }
+ }
+
+ sections.forEach(s => {
+  if (!progress[s.key]) {
+   progress[s.key]={answers:s.tasks.map(()=>false),completed:false};
+  }
+  progress[s.key].answers=s.tasks.map((_,i)=>!!progress[s.key].answers[i]);
+ });
+}
+
+async function restoreToday() {
+ hidePages();
+ day=null;
+ progress={};
+
+ const storeTz=stores.find(s=>s.id===employee?.primary_store_id)?.timezone;
+ const date=todayKey(storeTz);
+
+ const {data,error}=await sb.from("workdays")
+  .select("id,employee_id,work_date,store_id,created_at,checked_in_at,arrival_status,confirmed_at")
+  .eq("employee_id",employee.id)
+  .eq("work_date",date)
+  .maybeSingle();
+
+ if (error) throw error;
+
+ if (data) {
+  day=data;
+  dayStore=stores.find(s=>s.id===day.store_id);
+  await loadProgress(day.id);
+  goHome();
+ } else {
+  $("setup").classList.remove("hidden");
+ }
+}
+
+function goHome() {
+ hidePages();
+ if (profile?.role==="admin") {
+  showAdmin();
+  return;
+ }
+ if (!day) {
+  $("setup").classList.remove("hidden");
+  return;
+ }
+ $("home").classList.remove("hidden");
  renderHome();
 }
-function startDay(){
- const seller=document.getElementById("seller").value.trim();
- const store=document.getElementById("store").value.trim();
- if(!seller||!store){alert("Укажи ФИО продавца и ТЦ / магазин.");return}
- day={
-  id:todayKey()+"_"+Date.now(),
-  date:todayKey(),
-  seller:seller,
-  store:store,
-  sections:sections.map(s=>({answers:s.tasks.map(()=>false),completed:false})),
-  finished:false,
-  confirmed:false
- };
- saveDay();
- goHome();
+
+async function startDay() {
+ clearMsg();
+ if (profile?.role!=="employee"||!employee) return;
+
+ const storeId=$("store").value;
+ if (!storeId) {
+  msg("Выбери магазин.");
+  return;
+ }
+
+ try {
+  const {data,error}=await sb.rpc("start_workday",{p_store_id:storeId});
+  if (error) throw error;
+
+  let result=data;
+  if (Array.isArray(result)) result=result[0];
+
+  if (result?.id) {
+   day=result;
+  } else {
+   const date=todayKey(stores.find(s=>s.id===storeId)?.timezone);
+   const q=await sb.from("workdays")
+    .select("*")
+    .eq("employee_id",employee.id)
+    .eq("work_date",date)
+    .single();
+
+   if (q.error) throw q.error;
+   day=q.data;
+  }
+
+  dayStore=stores.find(s=>s.id===day.store_id)||stores.find(s=>s.id===storeId);
+  await loadProgress(day.id);
+  goHome();
+ } catch(err) {
+  msg("Не удалось начать рабочий день: "+(err.message||err),"notice error");
+ }
 }
-function renderHome(){
- document.getElementById("identity").textContent=day.seller+" · "+day.store+" · "+dateLabel(day.date);
- const root=document.getElementById("sections");
+
+async function checkIn() {
+ clearMsg();
+ try {
+  const {data,error}=await sb.rpc("check_in",{p_workday_id:day.id});
+  if (error) throw error;
+
+  const r=Array.isArray(data)?data[0]:data;
+  if (r?.checked_in_at) day.checked_in_at=r.checked_in_at;
+  if (r?.arrival_status) day.arrival_status=r.arrival_status;
+
+  const q=await sb.from("workdays")
+   .select("id,employee_id,work_date,store_id,created_at,checked_in_at,arrival_status,confirmed_at")
+   .eq("id",day.id)
+   .single();
+
+  if (q.error) throw q.error;
+  day=q.data;
+  dayStore=stores.find(s=>s.id===day.store_id);
+  renderHome();
+  msg("Время прихода зафиксировано сервером.","notice success");
+ } catch(err) {
+  msg("Не удалось зафиксировать приход: "+(err.message||err),"notice error");
+ }
+}
+
+function renderHome() {
+ const store=dayStore||stores.find(s=>s.id===day.store_id);
+ $("identity").textContent=`${employee.full_name} · ${store?.name||"Магазин"} · ${dateLabel(day.work_date)}`;
+
+ const ci=$("checkinArea");
+ ci.innerHTML="";
+ const line=document.createElement("p");
+ line.className="muted";
+
+ if (day.checked_in_at) {
+  const status=day.arrival_status==="on_time"?"Вовремя":"Опоздание";
+  line.textContent=`Приход: ${new Date(day.checked_in_at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit",second:"2-digit"})} · ${status}`;
+  const badge=document.createElement("span");
+  badge.className="pill";
+  badge.textContent=status;
+  ci.append(line,badge);
+ } else {
+  line.textContent="Время прихода ещё не зафиксировано.";
+  const b=document.createElement("button");
+  b.className="primary";
+  b.textContent="Я на месте";
+  b.onclick=checkIn;
+  ci.append(line,b);
+ }
+
+ const root=$("sections");
  root.innerHTML="";
- sections.forEach((s,i)=>{
-  const state=day.sections[i];
+
+ sections.forEach(s => {
+  const state=progress[s.key];
   const total=s.tasks.length;
   const done=state.answers.filter(Boolean).length;
   const complete=state.completed;
-  const button=document.createElement("button");
-  button.className="section-button";
-  button.innerHTML="<span><strong></strong><small></small></span><span class='status'></span>";
-  button.querySelector("strong").textContent=s.name;
-  button.querySelector("small").textContent=complete?"Раздел завершён":done>0?"Выполнено "+done+" из "+total+" — продолжить":"Пунктов: "+total;
-  button.querySelector(".status").textContent=complete?"✅":"🟡🟡🟡";
-  button.onclick=()=>openSection(i);
-  root.appendChild(button);
+
+  const b=document.createElement("button");
+  b.className="section-button";
+
+  const left=document.createElement("span");
+  const strong=document.createElement("strong");
+  strong.textContent=s.name;
+
+  const small=document.createElement("small");
+  small.textContent=complete?"Раздел завершён":
+   done>0?`Выполнено ${done} из ${total} — продолжить`:`Пунктов: ${total}`;
+
+  left.append(strong,small);
+
+  const status=document.createElement("span");
+  status.className="status";
+  status.textContent=complete?"✅":"🟡🟡🟡";
+
+  b.append(left,status);
+  b.disabled=!!day.confirmed_at;
+  b.onclick=()=>openSection(s.key);
+  root.append(b);
  });
- document.getElementById("finalConfirm").classList.toggle("hidden",!sections.every((s,i)=>day.sections[i].completed)||day.confirmed);
- document.getElementById("finished").classList.toggle("hidden",!day.confirmed);
+
+ const allDone=sections.every(s=>progress[s.key]?.completed);
+ $("finalConfirm").classList.toggle("hidden",!allDone||!!day.confirmed_at);
+ $("finished").classList.toggle("hidden",!day.confirmed_at);
 }
-function openSection(i){
- if(day.confirmed)return;
- activeSection=i;
- const state=day.sections[i];
+
+function openSection(key) {
+ if (day.confirmed_at) return;
+
+ activeSection=sections.findIndex(s=>s.key===key);
+ const state=progress[key];
  taskIndex=state.answers.findIndex(v=>!v);
- if(taskIndex<0)taskIndex=sections[i].tasks.length-1;
- hideAll();
- document.getElementById("work").classList.remove("hidden");
+
+ if (taskIndex<0) taskIndex=sections[activeSection].tasks.length-1;
+
+ hidePages();
+ $("work").classList.remove("hidden");
  renderTask();
 }
-function renderTask(){
+
+function renderTask() {
  const s=sections[activeSection];
- const state=day.sections[activeSection];
- document.getElementById("sectionTitle").textContent=s.name;
- document.getElementById("sectionIdentity").textContent=day.seller+" · "+day.store;
- document.getElementById("count").textContent="Пункт "+(taskIndex+1)+" из "+s.tasks.length;
- document.getElementById("bar").style.width=(state.answers.filter(Boolean).length/s.tasks.length*100)+"%";
- document.getElementById("task").textContent=s.tasks[taskIndex];
- document.getElementById("done").checked=state.answers[taskIndex];
- document.getElementById("done").disabled=state.completed;
- document.getElementById("hint").textContent=state.completed?"Этот раздел уже завершён.": "Отмечай пункт после выполнения — прогресс сохранится автоматически.";
+ const state=progress[s.key];
+
+ $("sectionTitle").textContent=s.name;
+ $("sectionIdentity").textContent=employee.full_name+" · "+(dayStore?.name||"");
+ $("count").textContent=`Пункт ${taskIndex+1} из ${s.tasks.length}`;
+ $("bar").style.width=(state.answers.filter(Boolean).length/s.tasks.length*100)+"%";
+ $("task").textContent=s.tasks[taskIndex];
+ $("done").checked=!!state.answers[taskIndex];
+ $("done").disabled=state.completed||!!day.confirmed_at;
+ $("hint").textContent=state.completed?"Этот раздел уже завершён.":"Отмечай пункт после выполнения — прогресс сохранится в Supabase.";
 }
-function completeTask(){
- const box=document.getElementById("done");
- if(!box.checked)return;
- const state=day.sections[activeSection];
- state.answers[taskIndex]=true;
+
+async function persistSection(key) {
+ const state=progress[key];
+
+ const payload={
+  workday_id:day.id,
+  section_key:key,
+  answers:state.answers,
+  completed_at:state.completed?(state.completedAt||new Date().toISOString()):null,
+  updated_at:new Date().toISOString()
+ };
+
+ const {error}=await sb.from("section_progress")
+  .upsert(payload,{onConflict:"workday_id,section_key"});
+
+ if (error) throw error;
+ if (state.completed) state.completedAt=payload.completed_at;
+}
+
+async function completeTask() {
+ const box=$("done");
+ if (!box.checked) return;
+
  const s=sections[activeSection];
- if(state.answers.every(Boolean))state.completed=true;
- saveDay();
- if(state.completed){
-  alert("Раздел «"+s.name+"» завершён!");
-  goHome();
+ const state=progress[s.key];
+
+ state.answers[taskIndex]=true;
+ state.completed=state.answers.every(Boolean);
+ box.disabled=true;
+
+ try {
+  await persistSection(s.key);
+
+  if (state.completed) {
+   alert("Раздел «"+s.name+"» завершён!");
+   goHome();
+   return;
+  }
+
+  taskIndex=state.answers.findIndex(v=>!v);
+  renderTask();
+ } catch(err) {
+  state.answers[taskIndex]=false;
+  state.completed=false;
+  box.checked=false;
+  box.disabled=false;
+  msg("Не удалось сохранить отметку. Проверь подключение и права RLS: "+(err.message||err),"notice error");
+ }
+}
+
+async function showHistory() {
+ if (profile?.role==="admin") {
+  await showAdmin();
   return;
  }
- taskIndex=state.answers.findIndex(v=>!v);
- renderTask();
-}
-function finishDay(){
- day.finished=true;
- day.confirmed=true;
- day.finishedAt=new Date().toISOString();
- saveDay();
- goHome();
-}
-function showHistory(){
- hideAll();
- document.getElementById("historyPage").classList.remove("hidden");
- const root=document.getElementById("historyList");
- root.innerHTML="";
- const list=loadData();
- if(!list.length){root.textContent="История пока пуста.";return}
- list.forEach(item=>{
-  const div=document.createElement("div");
-  div.className="history-item";
-  const title=document.createElement("strong");
-  title.textContent=item.seller;
-  const meta=document.createElement("div");
-  meta.className="small";
-  meta.textContent=dateLabel(item.date)+" · "+item.store;
-  div.append(title,meta);
-  sections.forEach((s,i)=>{
-   const line=document.createElement("div");
-   line.className="small";
-   const st=item.sections[i];
-   const completed=st&&st.completed;
-   const count=st?st.answers.filter(Boolean).length:0;
-   line.textContent=(completed?"✅":"🟡🟡🟡")+" "+s.name+": "+(completed?"завершён":"выполнено "+count+" из "+s.tasks.length);
-   div.appendChild(line);
-  });
-  if(item.confirmed){
-   const final=document.createElement("div");
-   final.className="small";
-   final.textContent="Подтверждение: Да";
-   div.appendChild(final);
+
+ hidePages();
+ $("historyPage").classList.remove("hidden");
+ $("historyList").textContent="Загрузка истории…";
+
+ try {
+  const {data,error}=await sb.from("workdays")
+   .select("id,work_date,store_id,checked_in_at,arrival_status,confirmed_at,stores(name),section_progress(section_key,answers,completed_at)")
+   .eq("employee_id",employee.id)
+   .order("work_date",{ascending:false})
+   .limit(60);
+
+  if (error) throw error;
+
+  const root=$("historyList");
+  root.innerHTML="";
+
+  if (!data?.length) {
+   root.textContent="История пока пуста.";
+   return;
   }
-  root.appendChild(div);
- });
-}
-function restoreToday(){
- const list=loadData();
- const found=list.find(x=>x.date===todayKey()&&!x.confirmed);
- if(found){
-  day=found;
-  document.getElementById("seller").value=day.seller;
-  document.getElementById("store").value=day.store;
-  goHome();
- }else{
-  day=null;
-  goHome();
+
+  data.forEach(item => {
+   const div=document.createElement("div");
+   div.className="history-item";
+
+   const title=document.createElement("strong");
+   title.textContent=dateLabel(item.work_date)+" · "+(item.stores?.name||stores.find(s=>s.id===item.store_id)?.name||"Магазин");
+
+   const meta=document.createElement("div");
+   meta.className="small";
+   meta.textContent=item.checked_in_at?
+    `Приход: ${new Date(item.checked_in_at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})} · ${item.arrival_status==="on_time"?"вовремя":"опоздание"}`:
+    "Приход не отмечен";
+
+   div.append(title,meta);
+
+   sections.forEach(s => {
+    const st=(item.section_progress||[]).find(x=>x.section_key===s.key);
+    const n=Array.isArray(st?.answers)?st.answers.filter(Boolean).length:0;
+    const line=document.createElement("div");
+    line.className="small";
+    line.textContent=(st?.completed_at?"✅":"🟡🟡🟡")+" "+s.name+": "+(st?.completed_at?"завершён":`выполнено ${n} из ${s.tasks.length}`);
+    div.append(line);
+   });
+
+   const allSectionsComplete=sections.every(s=>(item.section_progress||[]).some(p=>p.section_key===s.key&&!!p.completed_at));
+
+   if (item.confirmed_at) {
+    const f=document.createElement("div");
+    f.className="small";
+    f.textContent="Рабочий день подтверждён";
+    div.append(f);
+   } else if (allSectionsComplete) {
+    const f=document.createElement("div");
+    f.className="small";
+    f.textContent="Все разделы выполнены";
+    div.append(f);
+   }
+
+   root.append(div);
+  });
+ } catch(err) {
+  $("historyList").textContent="Не удалось загрузить историю: "+(err.message||err);
  }
 }
-restoreToday();
+
+function showAdmin() {
+ if (profile?.role!=="admin") return;
+ hidePages();
+ $("adminPage").classList.remove("hidden");
+ loadAdmin();
+}
+
+async function loadAdmin() {
+ if (profile?.role!=="admin") return;
+
+ const root=$("adminResults");
+ root.textContent="Загрузка…";
+
+ try {
+  let q=sb.from("workdays")
+   .select("id,employee_id,work_date,store_id,created_at,checked_in_at,arrival_status,confirmed_at,employees(full_name),stores(name,city),section_progress(section_key,answers,completed_at)")
+   .order("work_date",{ascending:false})
+   .limit(500);
+
+  const date=$("adminDate").value;
+  if (date) q=q.eq("work_date",date);
+
+  const storeId=$("adminStore").value;
+  if (storeId) q=q.eq("store_id",storeId);
+
+  const {data,error}=await q;
+  if (error) throw error;
+
+  const rows=data||[];
+  const completedRows=rows.filter(x=>sections.every(s=>(x.section_progress||[]).some(p=>p.section_key===s.key&&!!p.completed_at))).length;
+
+  $("adminSummary").textContent=`Записей: ${rows.length} · Все разделы выполнены: ${completedRows} · Без отметки прихода: ${rows.filter(x=>!x.checked_in_at).length}`;
+
+  root.innerHTML="";
+
+  if (!rows.length) {
+   root.textContent="За выбранные фильтры записей нет.";
+   return;
+  }
+
+  const wrap=document.createElement("div");
+  wrap.className="table-wrap";
+
+  const table=document.createElement("table");
+  table.innerHTML="<thead><tr><th>Дата</th><th>Сотрудник</th><th>Магазин</th><th>Приход</th><th>Чек-лист</th></tr></thead>";
+
+  const body=document.createElement("tbody");
+
+  rows.forEach(item => {
+   const tr=document.createElement("tr");
+
+   const td1=document.createElement("td");
+   td1.textContent=dateLabel(item.work_date);
+
+   const td2=document.createElement("td");
+   td2.textContent=item.employees?.full_name||"—";
+
+   const td3=document.createElement("td");
+   td3.textContent=item.stores?.name||"—";
+
+   const td4=document.createElement("td");
+   td4.textContent=item.checked_in_at?
+    new Date(item.checked_in_at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})+" · "+(item.arrival_status==="on_time"?"вовремя":"опоздание"):
+    "не отмечен";
+
+   const td5=document.createElement("td");
+   const completed=(item.section_progress||[]).filter(p=>!!p.completed_at).length;
+   td5.textContent=`${completed}/3 раздела${completed===3?" · выполнено":""}${item.confirmed_at?" · подтверждён":""}`;
+
+   [td1,td2,td3,td4,td5].forEach(td=>tr.append(td));
+   body.append(tr);
+  });
+
+  table.append(body);
+  wrap.append(table);
+  root.append(wrap);
+ } catch(err) {
+  root.textContent="Не удалось загрузить панель: "+(err.message||err);
+ }
+}
+
+$("adminDate").addEventListener("change",loadAdmin);
+$("adminStore").addEventListener("change",loadAdmin);
+
+if (!configured) {
+ $("configWarning").classList.remove("hidden");
+ $("auth").classList.add("hidden");
+} else {
+ sb.auth.onAuthStateChange((_event,session) => {
+  if (!session) {
+   hideApp();
+   return;
+  }
+  setTimeout(()=>boot().catch(err=>msg(err.message||String(err),"notice error")),0);
+ });
+
+ sb.auth.getSession().then(({data}) => {
+  if (data.session) {
+   boot().catch(err=>msg(err.message||String(err),"notice error"));
+  } else {
+   hideApp();
+  }
+ }).catch(err=>msg(err.message||String(err),"notice error"));
+}
 </script>
 </body>
 </html>
