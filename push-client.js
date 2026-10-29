@@ -1,5 +1,5 @@
 // Push subscription helper for the daily checklist.
-const CHECKLIST_VAPID_PUBLIC_KEY = "BFRDFBsMXn2TzGsW92aD_OykXI0yJD64SesJUezbDGto4M66KGSyl0OV2u4P8l071QliDEvJ_7BBQVYgJywEViw";
+const CHECKLIST_VAPID_PUBLIC_KEY = "BCfaiISW_kAYIxCbqg7wwWKTr5xSvHV2OTFZhlqu5IJAo4vLhnJ5kpqcjJHUb7j5U4_i1AkX-eJ_3UZDonzTbYM";
 
 function pushBase64ToBytes(value) {
   const padding = "=".repeat((4 - value.length % 4) % 4);
