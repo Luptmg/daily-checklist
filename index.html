@@ -115,8 +115,8 @@ th{background:var(--table-head)}
         <div id="sections"></div>
       </div>
       <div id="finalConfirm" class="card hidden">
-        <h2>Все разделы завершены!</h2>
-        <p>Все отметки сохранены в Supabase.</p>
+        <h2>Все пункты обработаны</h2>
+        <p>Все отметки и причины невыполнения сохранены.</p>
         <p class="muted">Отдельная финальная отметка пока не записывается: в текущих RLS-политиках нет разрешения на обновление workdays, а отдельная RPC-функция подтверждения не указана.</p>
       </div>
       <div id="finished" class="card hidden">
@@ -583,7 +583,7 @@ function renderTask(){
   $('bar').style.width=pct+'%';
   $('task').textContent=s.tasks[taskIndex];
   $('done').checked=!!state.answers[taskIndex];
-  $('done').disabled=state.completed||!!day.confirmed_at||!!String(state.comments?.[taskIndex]||'').trim();
+  $('done').disabled=state.completed||!!day.confirmed_at;
   $('failTaskButton').disabled=state.completed||!!day.confirmed_at||!!state.answers[taskIndex];
   const comment=String(state.comments?.[taskIndex]||'').trim();
   $('hint').textContent=state.completed?'Этот раздел заполнен.':comment?'Причина: '+comment:'Отметь выполнение или нажми «Не выполнено» и укажи причину.';
@@ -771,7 +771,7 @@ async function showHistory(){
       }else if(allSectionsComplete){
         const f=document.createElement('div');
         f.className='small';
-        f.textContent='Все разделы выполнены';
+        f.textContent='Все пункты обработаны';
         div.append(f);
       }
       const detailsButton=document.createElement('button');
@@ -820,7 +820,7 @@ async function loadAdmin(){
     const aggregate=rows.reduce((acc,item)=>{const st=getProgressStats(item.section_progress||[]);acc.done+=st.done;acc.total+=st.total;acc.failed+=st.failed;return acc;},{done:0,total:0,failed:0});
     const aggregatePercent=aggregate.total?Math.round(aggregate.done/aggregate.total*100):0;
 
-    $('adminSummary').textContent=`Записей: ${rows.length} · Выполнение пунктов: ${aggregatePercent}% (${aggregate.done}/${aggregate.total}) · Не выполнено: ${aggregate.failed} · Все разделы заполнены: ${completedRows} · Без отметки прихода: ${rows.filter(x=>!x.checked_in_at).length}`;
+    $('adminSummary').textContent=`Записей: ${rows.length} · Выполнение пунктов: ${aggregatePercent}% (${aggregate.done}/${aggregate.total}) · Не выполнено: ${aggregate.failed} · Все пункты обработаны: ${completedRows} · Без отметки прихода: ${rows.filter(x=>!x.checked_in_at).length}`;
     root.innerHTML='';
 
     if(!rows.length){
