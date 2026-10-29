@@ -38,6 +38,10 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .task{font-size:17px;line-height:1.55;margin:18px 0}
 .check{display:flex;align-items:center;gap:12px;background:var(--surface-soft);padding:16px;border-radius:12px;margin-top:18px}
 .check input{width:24px;height:24px;flex-shrink:0;margin:0}
+.task-actions{display:flex;gap:10px;margin-top:14px;align-items:stretch}
+.task-actions .check{flex:1;margin-top:0}
+.task-actions button{flex:1;min-width:0}
+.task-actions .danger{background:var(--danger-soft);color:var(--danger-text)}
 .history-item{padding:14px 0;border-bottom:1px solid var(--border)}
 .small{font-size:13px;color:var(--muted);line-height:1.6}
 .row{display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap}
@@ -101,6 +105,7 @@ th{background:var(--table-head)}
         <h2>Разделы чек-листа</h2>
         <div id="identity" class="muted"></div>
         <div id="checkinArea"></div>
+        <div id="overallProgress"></div>
         <div class="card">
           <h2>Напоминания о порядке</h2>
           <p class="muted">Получай push-напоминания в 12:00 и 16:00 по местному времени магазина, пока рабочий день начат.</p>
@@ -128,8 +133,11 @@ th{background:var(--table-head)}
       <div id="count" class="muted"></div>
       <div class="progress"><div id="bar"></div></div>
       <div id="task" class="task"></div>
-      <label class="check"><input type="checkbox" id="done" onchange="completeTask()"><span>Выполнено</span></label>
-      <p id="hint" class="muted">После отметки автоматически откроется следующий пункт.</p>
+      <div class="task-actions">
+        <label class="check"><input type="checkbox" id="done" onchange="completeTask()"><span>✓ Выполнено</span></label>
+        <button id="failTaskButton" class="danger" type="button" onclick="failTask()">✕ Не выполнено</button>
+      </div>
+      <p id="hint" class="muted">Отметь выполнение или укажи причину, почему пункт не выполнен.</p>
     </section>
     <section id="historyPage" class="card hidden">
       <h2>История чек-листов</h2>
@@ -379,7 +387,7 @@ function fillStoreSelects(){
 
 async function loadProgress(workdayId){
   const {data,error}=await sb.from('section_progress')
-    .select('workday_id,section_key,answers,completed_at,updated_at')
+    .select('workday_id,section_key,answers,comments,completed_at,updated_at')
     .eq('workday_id',workdayId);
   if(error)throw error;
 
@@ -389,6 +397,7 @@ async function loadProgress(workdayId){
     if(s){
       progress[row.section_key]={
         answers:Array.isArray(row.answers)?row.answers:s.tasks.map(()=>false),
+        comments:row.comments&&typeof row.comments==='object'&&!Array.isArray(row.comments)?row.comments:{},
         completed:!!row.completed_at,
         completedAt:row.completed_at||null
       };
@@ -397,9 +406,10 @@ async function loadProgress(workdayId){
 
   sections.forEach(s=>{
     if(!progress[s.key]){
-      progress[s.key]={answers:s.tasks.map(()=>false),completed:false,completedAt:null};
+      progress[s.key]={answers:s.tasks.map(()=>false),comments:{},completed:false,completedAt:null};
     }
     progress[s.key].answers=s.tasks.map((_,i)=>!!progress[s.key].answers[i]);
+    if(!progress[s.key].comments||typeof progress[s.key].comments!=='object'||Array.isArray(progress[s.key].comments))progress[s.key].comments={};
   });
 }
 
@@ -514,12 +524,20 @@ function renderHome(){
     ci.append(line,b);
   }
 
+  const totalTasks=sections.reduce((n,s)=>n+s.tasks.length,0);
+  const totalDone=sections.reduce((n,s)=>n+((progress[s.key]?.answers||[]).filter(Boolean).length),0);
+  const totalFailed=sections.reduce((n,s)=>n+Object.keys(progress[s.key]?.comments||{}).filter(k=>String(progress[s.key].comments[k]||'').trim()).length,0);
+  const percent=Math.round(totalDone/totalTasks*100);
+  $('overallProgress').innerHTML=`<div class="row"><strong>Общий прогресс</strong><strong>${percent}%</strong></div><div class="progress"><div style="width:${percent}%"></div></div><div class="small">Выполнено ${totalDone} из ${totalTasks} пунктов${totalFailed?` · не выполнено: ${totalFailed}`:''}</div>`;
+
   const root=$('sections');
   root.innerHTML='';
   sections.forEach(s=>{
     const state=progress[s.key];
     const total=s.tasks.length;
     const done=state.answers.filter(Boolean).length;
+    const failed=Object.keys(state.comments||{}).filter(k=>String(state.comments[k]||'').trim()).length;
+    const sectionPercent=Math.round(done/total*100);
     const complete=state.completed;
     const b=document.createElement('button');
     b.className='section-button';
@@ -527,11 +545,11 @@ function renderHome(){
     const strong=document.createElement('strong');
     strong.textContent=s.name;
     const small=document.createElement('small');
-    small.textContent=complete?'Раздел завершён':done>0?`Выполнено ${done} из ${total} — продолжить`:`Пунктов: ${total}`;
+    small.textContent=`Выполнено ${done} из ${total} (${sectionPercent}%)`+(failed?` · не выполнено: ${failed}`:'')+(complete?' · раздел заполнен':' · продолжить');
     left.append(strong,small);
     const status=document.createElement('span');
     status.className='status';
-    status.textContent=complete?'✅':'🟡🟡🟡';
+    status.textContent=complete?(failed?'⚠️':'✅'):'🟡🟡🟡';
     b.append(left,status);
     b.disabled=!!day.confirmed_at;
     b.onclick=()=>openSection(s.key);
@@ -547,7 +565,7 @@ function openSection(key){
   if(day.confirmed_at)return;
   activeSection=sections.findIndex(s=>s.key===key);
   const state=progress[key];
-  taskIndex=state.answers.findIndex(v=>!v);
+  taskIndex=state.answers.findIndex((v,i)=>!v&&!String(state.comments?.[i]||'').trim());
   if(taskIndex<0)taskIndex=sections[activeSection].tasks.length-1;
   hidePages();
   $('work').classList.remove('hidden');
@@ -558,12 +576,17 @@ function renderTask(){
   const s=sections[activeSection],state=progress[s.key];
   $('sectionTitle').textContent=s.name;
   $('sectionIdentity').textContent=employee.full_name+' · '+(dayStore?.name||'');
-  $('count').textContent=`Пункт ${taskIndex+1} из ${s.tasks.length}`;
-  $('bar').style.width=(state.answers.filter(Boolean).length/s.tasks.length*100)+'%';
+  const doneCount=state.answers.filter(Boolean).length;
+  const failedCount=Object.keys(state.comments||{}).filter(k=>String(state.comments[k]||'').trim()).length;
+  const pct=Math.round(doneCount/s.tasks.length*100);
+  $('count').textContent=`Пункт ${taskIndex+1} из ${s.tasks.length} · выполнено ${pct}% (${doneCount}/${s.tasks.length})`+(failedCount?` · не выполнено: ${failedCount}`:'');
+  $('bar').style.width=pct+'%';
   $('task').textContent=s.tasks[taskIndex];
   $('done').checked=!!state.answers[taskIndex];
-  $('done').disabled=state.completed||!!day.confirmed_at;
-  $('hint').textContent=state.completed?'Этот раздел уже завершён.':'Отмечай пункт после выполнения — прогресс сохранится в Supabase.';
+  $('done').disabled=state.completed||!!day.confirmed_at||!!String(state.comments?.[taskIndex]||'').trim();
+  $('failTaskButton').disabled=state.completed||!!day.confirmed_at||!!state.answers[taskIndex];
+  const comment=String(state.comments?.[taskIndex]||'').trim();
+  $('hint').textContent=state.completed?'Этот раздел заполнен.':comment?'Причина: '+comment:'Отметь выполнение или нажми «Не выполнено» и укажи причину.';
 }
 
 async function persistSection(key){
@@ -572,6 +595,7 @@ async function persistSection(key){
     workday_id:day.id,
     section_key:key,
     answers:state.answers,
+    comments:state.comments||{},
     completed_at:state.completed?(state.completedAt||new Date().toISOString()):null,
     updated_at:new Date().toISOString()
   };
@@ -585,7 +609,8 @@ async function completeTask(){
   if(!box.checked)return;
   const s=sections[activeSection],state=progress[s.key];
   state.answers[taskIndex]=true;
-  state.completed=state.answers.every(Boolean);
+  delete state.comments[taskIndex];
+  state.completed=state.answers.every((v,i)=>v||!!String(state.comments?.[i]||'').trim());
   box.disabled=true;
 
   try{
@@ -595,7 +620,7 @@ async function completeTask(){
       goHome();
       return;
     }
-    taskIndex=state.answers.findIndex(v=>!v);
+    taskIndex=state.answers.findIndex((v,i)=>!v&&!String(state.comments?.[i]||'').trim());
     renderTask();
   }catch(err){
     state.answers[taskIndex]=false;
@@ -606,6 +631,87 @@ async function completeTask(){
   }
 }
 
+async function failTask(){
+  if(profile?.role!=='employee'||!day||day.confirmed_at)return;
+  const s=sections[activeSection],state=progress[s.key];
+  if(state.answers[taskIndex])return;
+  const comment=prompt('Укажи причину, почему пункт не выполнен:');
+  if(comment===null)return;
+  const reason=comment.trim();
+  if(!reason){msg('Нужно указать причину, почему пункт не выполнен.','notice error');return;}
+  const oldComment=state.comments[taskIndex];
+  state.comments[taskIndex]=reason;
+  state.answers[taskIndex]=false;
+  state.completed=state.answers.every((v,i)=>v||!!String(state.comments?.[i]||'').trim());
+  $('failTaskButton').disabled=true;
+  $('done').disabled=true;
+  try{
+    await persistSection(s.key);
+    if(state.completed){
+      msg('Раздел заполнен. Пункты с крестиком и причинами доступны в списке.','notice success');
+      goHome();
+      return;
+    }
+    taskIndex=state.answers.findIndex((v,i)=>!v&&!String(state.comments?.[i]||'').trim());
+    renderTask();
+  }catch(err){
+    delete state.comments[taskIndex];
+    if(oldComment)state.comments[taskIndex]=oldComment;
+    state.completed=false;
+    $('failTaskButton').disabled=false;
+    $('done').disabled=false;
+    msg('Не удалось сохранить причину. Проверь подключение и права доступа: '+(err.message||err),'notice error');
+  }
+}
+
+function getProgressStats(sectionRows){
+  let total=0,done=0,failed=0;
+  for(const section of sections){
+    total+=section.tasks.length;
+    const row=(sectionRows||[]).find(x=>x.section_key===section.key);
+    const answers=Array.isArray(row?.answers)?row.answers:[];
+    done+=answers.filter(Boolean).length;
+    const comments=row?.comments&&typeof row.comments==='object'&&!Array.isArray(row.comments)?row.comments:{};
+    failed+=Object.keys(comments).filter(k=>String(comments[k]||'').trim()).length;
+  }
+  return {total,done,failed,percent:total?Math.round(done/total*100):0};
+}
+
+function buildChecklistDetails(sectionRows){
+  const root=document.createElement('div');
+  root.className='checklist-details';
+  sections.forEach(section=>{
+    const row=(sectionRows||[]).find(x=>x.section_key===section.key);
+    const answers=Array.isArray(row?.answers)?row.answers:[];
+    const comments=row?.comments&&typeof row.comments==='object'&&!Array.isArray(row.comments)?row.comments:{};
+    const head=document.createElement('strong');
+    head.textContent=section.name;
+    head.style.display='block';
+    head.style.margin='12px 0 6px';
+    root.append(head);
+    section.tasks.forEach((task,i)=>{
+      const line=document.createElement('div');
+      line.className='history-item';
+      line.style.padding='8px 0';
+      const status=document.createElement('div');
+      status.textContent=answers[i]?'✓ Выполнено':String(comments[i]||'').trim()?'✕ Не выполнено':'○ Не отмечено';
+      status.style.fontWeight='700';
+      const text=document.createElement('div');
+      text.textContent=task;
+      line.append(status,text);
+      if(String(comments[i]||'').trim()){
+        const reason=document.createElement('div');
+        reason.className='notice';
+        reason.style.margin='6px 0 0';
+        reason.textContent='Причина: '+comments[i];
+        line.append(reason);
+      }
+      root.append(line);
+    });
+  });
+  return root;
+}
+
 async function showHistory(){
   if(profile?.role==='admin'){await showAdmin();return;}
   hidePages();
@@ -614,7 +720,7 @@ async function showHistory(){
 
   try{
     const {data,error}=await sb.from('workdays')
-      .select('id,work_date,store_id,checked_in_at,arrival_status,arrival_manually_edited,confirmed_at,stores(name),section_progress(section_key,answers,completed_at)')
+      .select('id,work_date,store_id,checked_in_at,arrival_status,arrival_manually_edited,confirmed_at,stores(name),section_progress(section_key,answers,comments,completed_at)')
       .eq('employee_id',employee.id)
       .order('work_date',{ascending:false})
       .limit(60);
@@ -648,9 +754,11 @@ async function showHistory(){
       sections.forEach(s=>{
         const st=(item.section_progress||[]).find(x=>x.section_key===s.key);
         const n=Array.isArray(st?.answers)?st.answers.filter(Boolean).length:0;
+        const failed=Object.keys(st?.comments||{}).filter(k=>String(st.comments[k]||'').trim()).length;
+        const pct=Math.round(n/s.tasks.length*100);
         const line=document.createElement('div');
         line.className='small';
-        line.textContent=(st?.completed_at?'✅':'🟡🟡🟡')+' '+s.name+': '+(st?.completed_at?'завершён':`выполнено ${n} из ${s.tasks.length}`);
+        line.textContent=(st?.completed_at?(failed?'⚠️':'✅'):'🟡🟡🟡')+' '+s.name+`: выполнено ${n}/${s.tasks.length} (${pct}%)`+(failed?` · не выполнено ${failed}`:'');
         div.append(line);
       });
 
@@ -666,6 +774,14 @@ async function showHistory(){
         f.textContent='Все разделы выполнены';
         div.append(f);
       }
+      const detailsButton=document.createElement('button');
+      detailsButton.className='secondary';
+      detailsButton.style.marginTop='10px';
+      detailsButton.textContent='Показать пункты и комментарии';
+      const details=buildChecklistDetails(item.section_progress||[]);
+      details.classList.add('hidden');
+      detailsButton.onclick=()=>{details.classList.toggle('hidden');detailsButton.textContent=details.classList.contains('hidden')?'Показать пункты и комментарии':'Скрыть пункты и комментарии';};
+      div.append(detailsButton,details);
       root.append(div);
     });
   }catch(err){
@@ -687,7 +803,7 @@ async function loadAdmin(){
 
   try{
     let q=sb.from('workdays')
-      .select('id,employee_id,work_date,store_id,created_at,checked_in_at,arrival_status,arrival_manually_edited,confirmed_at,employees(full_name),stores(name,city,timezone),section_progress(section_key,answers,completed_at)')
+      .select('id,employee_id,work_date,store_id,created_at,checked_in_at,arrival_status,arrival_manually_edited,confirmed_at,employees(full_name),stores(name,city,timezone),section_progress(section_key,answers,comments,completed_at)')
       .order('work_date',{ascending:false})
       .limit(500);
 
@@ -701,8 +817,10 @@ async function loadAdmin(){
     const rows=data||[];
     const isComplete=item=>sections.every(s=>(item.section_progress||[]).some(p=>p.section_key===s.key&&!!p.completed_at));
     const completedRows=rows.filter(isComplete).length;
+    const aggregate=rows.reduce((acc,item)=>{const st=getProgressStats(item.section_progress||[]);acc.done+=st.done;acc.total+=st.total;acc.failed+=st.failed;return acc;},{done:0,total:0,failed:0});
+    const aggregatePercent=aggregate.total?Math.round(aggregate.done/aggregate.total*100):0;
 
-    $('adminSummary').textContent=`Записей: ${rows.length} · Все разделы выполнены: ${completedRows} · Без отметки прихода: ${rows.filter(x=>!x.checked_in_at).length}`;
+    $('adminSummary').textContent=`Записей: ${rows.length} · Выполнение пунктов: ${aggregatePercent}% (${aggregate.done}/${aggregate.total}) · Не выполнено: ${aggregate.failed} · Все разделы заполнены: ${completedRows} · Без отметки прихода: ${rows.filter(x=>!x.checked_in_at).length}`;
     root.innerHTML='';
 
     if(!rows.length){
@@ -748,8 +866,9 @@ async function loadAdmin(){
       }
 
       const td5=document.createElement('td');
+      const stats=getProgressStats(item.section_progress||[]);
       const completed=(item.section_progress||[]).filter(p=>!!p.completed_at).length;
-      td5.textContent=`${completed}/3 раздела${isComplete(item)?' · выполнено':''}${item.confirmed_at?' · подтверждён':''}`;
+      td5.textContent=`${stats.percent}% (${stats.done}/${stats.total}) · не выполнено: ${stats.failed} · заполнено разделов ${completed}/3${item.confirmed_at?' · подтверждён':''}`;
 
       const td6=document.createElement('td');
       td6.className='delete-cell';
@@ -761,6 +880,20 @@ async function loadAdmin(){
       edit.onclick=()=>editArrivalTime(item);
       td6.append(edit);
 
+      const detailsButton=document.createElement('button');
+      detailsButton.className='secondary';
+      detailsButton.style.marginTop='6px';
+      detailsButton.textContent='Пункты / комментарии';
+      td6.append(detailsButton);
+
+      const detailsTr=document.createElement('tr');
+      detailsTr.classList.add('hidden');
+      const detailsTd=document.createElement('td');
+      detailsTd.colSpan=6;
+      detailsTd.append(buildChecklistDetails(item.section_progress||[]));
+      detailsTr.append(detailsTd);
+      detailsButton.onclick=()=>{detailsTr.classList.toggle('hidden');detailsButton.textContent=detailsTr.classList.contains('hidden')?'Пункты / комментарии':'Скрыть пункты';};
+
       if(isComplete(item)){
         const del=document.createElement('button');
         del.className='danger';
@@ -771,7 +904,7 @@ async function loadAdmin(){
       }
 
       [td1,td2,td3,td4,td5,td6].forEach(td=>tr.append(td));
-      body.append(tr);
+      body.append(tr,detailsTr);
     });
 
     table.append(body);
