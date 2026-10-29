@@ -129,7 +129,8 @@ th{background:var(--table-head)}
       <div id="finalConfirm" class="card hidden">
         <h2>Все пункты обработаны</h2>
         <p>Все отметки и причины невыполнения сохранены.</p>
-        <p class="muted">Отдельная финальная отметка пока не записывается: в текущих RLS-политиках нет разрешения на обновление workdays, а отдельная RPC-функция подтверждения не указана.</p>
+        <p class="muted">Проверь заполнение разделов и подтверди завершение рабочего дня.</p>
+        <button id="confirmWorkdayButton" class="primary" type="button" onclick="confirmWorkday()">Подтвердить рабочий день</button>
       </div>
       <div id="finished" class="card hidden">
         <h2>Рабочий день подтверждён</h2>
@@ -595,6 +596,25 @@ function renderHome(){
   const allDone=sections.every(s=>progress[s.key]?.completed);
   $('finalConfirm').classList.toggle('hidden',!allDone||!!day.confirmed_at);
   $('finished').classList.toggle('hidden',!day.confirmed_at);
+}
+
+async function confirmWorkday(){
+  if(profile?.role!=='employee'||!day||day.confirmed_at)return;
+  const button=$('confirmWorkdayButton');
+  button.disabled=true;
+  clearMsg();
+  try{
+    const {data,error}=await sb.rpc('confirm_workday',{p_workday_id:day.id});
+    if(error)throw error;
+    const result=Array.isArray(data)?data[0]:data;
+    if(!result?.confirmed_at)throw new Error('Сервер не вернул время подтверждения.');
+    day.confirmed_at=result.confirmed_at;
+    renderHome();
+    msg('Рабочий день подтверждён и сохранён.','notice success');
+  }catch(err){
+    button.disabled=false;
+    msg('Не удалось подтвердить рабочий день: '+(err.message||err),'notice error');
+  }
 }
 
 function openSection(key){
