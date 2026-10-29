@@ -156,6 +156,7 @@ th{background:var(--table-head)}
       <div class="row task-navigation">
         <button id="prevTaskButton" class="secondary" type="button" onclick="moveTask(-1)">← Предыдущий пункт</button>
         <button id="nextTaskButton" class="secondary" type="button" onclick="moveTask(1)">Следующий пункт →</button>
+        <button id="completeSectionButton" class="primary hidden" type="button" onclick="finishSection()">Готово</button>
       </div>
       <p id="hint" class="muted">Можно возвращаться к предыдущим пунктам до подтверждения рабочего дня.</p>
     </section>
@@ -660,7 +661,13 @@ function renderTask(){
   $('done').disabled=!!day.confirmed_at;
   $('failTaskButton').disabled=!!day.confirmed_at||!!state.answers[taskIndex];
   $('prevTaskButton').disabled=!!day.confirmed_at||taskIndex<=0;
-  $('nextTaskButton').disabled=!!day.confirmed_at||taskIndex>=s.tasks.length-1;
+  const isLastTask=taskIndex===s.tasks.length-1;
+  const currentComment=String(state.comments?.[taskIndex]||'').trim();
+  const currentAnswered=!!state.answers[taskIndex]||!!currentComment;
+  $('nextTaskButton').classList.toggle('hidden',isLastTask);
+  $('nextTaskButton').disabled=!!day.confirmed_at||isLastTask;
+  $('completeSectionButton').classList.toggle('hidden',!isLastTask||!currentAnswered);
+  $('completeSectionButton').disabled=!!day.confirmed_at;
   const comment=String(state.comments?.[taskIndex]||'').trim();
   $('hint').textContent=day.confirmed_at?'Рабочий день подтверждён. Изменение ответов запрещено.':comment?'Причина: '+comment:state.answers[taskIndex]?'Пункт отмечен выполненным. При необходимости сними отметку или перейди к другому пункту.':'Отметь выполнение или нажми «Не выполнено» и укажи причину.';
 }
@@ -687,6 +694,14 @@ function moveTask(delta){
   if(next<0||next>=s.tasks.length)return;
   taskIndex=next;
   renderTask();
+}
+
+function finishSection(){
+  if(!day||day.confirmed_at)return;
+  const s=sections[activeSection],state=progress[s.key];
+  const answered=!!state.answers[taskIndex]||!!String(state.comments?.[taskIndex]||'').trim();
+  if(taskIndex!==s.tasks.length-1||!answered)return;
+  goHome();
 }
 
 async function completeTask(){
