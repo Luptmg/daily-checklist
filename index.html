@@ -150,7 +150,11 @@ th{background:var(--table-head)}
         <label class="check"><input type="checkbox" id="done" onchange="completeTask()"><span>✓ Выполнено</span></label>
         <button id="failTaskButton" class="danger" type="button" onclick="failTask()">✕ Не выполнено</button>
       </div>
-      <p id="hint" class="muted">Отметь выполнение или укажи причину, почему пункт не выполнен.</p>
+      <div class="row task-navigation">
+        <button id="prevTaskButton" class="secondary" type="button" onclick="moveTask(-1)">← Предыдущий пункт</button>
+        <button id="nextTaskButton" class="secondary" type="button" onclick="moveTask(1)">Следующий пункт →</button>
+      </div>
+      <p id="hint" class="muted">Можно возвращаться к предыдущим пунктам до подтверждения рабочего дня.</p>
     </section>
     <section id="historyPage" class="card hidden">
       <h2>История чек-листов</h2>
@@ -622,7 +626,7 @@ function openSection(key){
   activeSection=sections.findIndex(s=>s.key===key);
   const state=progress[key];
   taskIndex=state.answers.findIndex((v,i)=>!v&&!String(state.comments?.[i]||'').trim());
-  if(taskIndex<0)taskIndex=sections[activeSection].tasks.length-1;
+  if(taskIndex<0)taskIndex=0;
   hidePages();
   $('work').classList.remove('hidden');
   renderTask();
@@ -639,10 +643,12 @@ function renderTask(){
   $('bar').style.width=pct+'%';
   $('task').textContent=s.tasks[taskIndex];
   $('done').checked=!!state.answers[taskIndex];
-  $('done').disabled=state.completed||!!day.confirmed_at;
-  $('failTaskButton').disabled=state.completed||!!day.confirmed_at||!!state.answers[taskIndex];
+  $('done').disabled=!!day.confirmed_at;
+  $('failTaskButton').disabled=!!day.confirmed_at||!!state.answers[taskIndex];
+  $('prevTaskButton').disabled=!!day.confirmed_at||taskIndex<=0;
+  $('nextTaskButton').disabled=!!day.confirmed_at||taskIndex>=s.tasks.length-1;
   const comment=String(state.comments?.[taskIndex]||'').trim();
-  $('hint').textContent=state.completed?'Этот раздел заполнен.':comment?'Причина: '+comment:'Отметь выполнение или нажми «Не выполнено» и укажи причину.';
+  $('hint').textContent=day.confirmed_at?'Рабочий день подтверждён. Изменение ответов запрещено.':comment?'Причина: '+comment:state.answers[taskIndex]?'Пункт отмечен выполненным. При необходимости сними отметку или перейди к другому пункту.':'Отметь выполнение или нажми «Не выполнено» и укажи причину.';
 }
 
 async function persistSection(key){
@@ -657,33 +663,44 @@ async function persistSection(key){
   };
   const {error}=await sb.from('section_progress').upsert(payload,{onConflict:'workday_id,section_key'});
   if(error)throw error;
-  if(state.completed)state.completedAt=payload.completed_at;
+  state.completedAt=state.completed?payload.completed_at:null;
+}
+
+function moveTask(delta){
+  if(!day||day.confirmed_at)return;
+  const s=sections[activeSection];
+  const next=taskIndex+delta;
+  if(next<0||next>=s.tasks.length)return;
+  taskIndex=next;
+  renderTask();
 }
 
 async function completeTask(){
+  if(profile?.role!=='employee'||!day||day.confirmed_at)return;
   const box=$('done');
-  if(!box.checked)return;
   const s=sections[activeSection],state=progress[s.key];
-  state.answers[taskIndex]=true;
-  delete state.comments[taskIndex];
+  const oldAnswer=!!state.answers[taskIndex];
+  const oldComment=state.comments[taskIndex];
+  const oldCompleted=state.completed;
+  const oldCompletedAt=state.completedAt;
+
+  state.answers[taskIndex]=!!box.checked;
+  if(box.checked)delete state.comments[taskIndex];
   state.completed=state.answers.every((v,i)=>v||!!String(state.comments?.[i]||'').trim());
   box.disabled=true;
+  $('failTaskButton').disabled=true;
 
   try{
     await persistSection(s.key);
-    if(state.completed){
-      alert('Раздел «'+s.name+'» завершён!');
-      goHome();
-      return;
-    }
-    taskIndex=state.answers.findIndex((v,i)=>!v&&!String(state.comments?.[i]||'').trim());
     renderTask();
   }catch(err){
-    state.answers[taskIndex]=false;
-    state.completed=false;
-    box.checked=false;
-    box.disabled=false;
-    msg('Не удалось сохранить отметку. Проверь подключение и права RLS: '+(err.message||err),'notice error');
+    state.answers[taskIndex]=oldAnswer;
+    if(oldComment===undefined)delete state.comments[taskIndex];
+    else state.comments[taskIndex]=oldComment;
+    state.completed=oldCompleted;
+    state.completedAt=oldCompletedAt;
+    renderTask();
+    msg('Не удалось сохранить отметку. Проверь подключение и права доступа: '+(err.message||err),'notice error');
   }
 }
 
@@ -703,13 +720,8 @@ async function failTask(){
   $('done').disabled=true;
   try{
     await persistSection(s.key);
-    if(state.completed){
-      msg('Раздел заполнен. Пункты с крестиком и причинами доступны в списке.','notice success');
-      goHome();
-      return;
-    }
-    taskIndex=state.answers.findIndex((v,i)=>!v&&!String(state.comments?.[i]||'').trim());
     renderTask();
+    msg('Причина сохранена. Можно перейти к следующему или предыдущему пункту.','notice success');
   }catch(err){
     delete state.comments[taskIndex];
     if(oldComment)state.comments[taskIndex]=oldComment;
