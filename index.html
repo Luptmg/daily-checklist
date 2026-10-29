@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#176b4d">
+<title>Мой рабочий день</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f3f5f4;color:#202824;font:16px Arial,sans-serif}
+header{background:#176b4d;color:white;padding:22px 18px}
+header h1{font-size:23px;margin:0 0 6px}
+header p{margin:0;opacity:.9}
+main{max-width:620px;margin:auto;padding:16px}
+.card{background:white;padding:18px;border-radius:16px;margin-bottom:14px;box-shadow:0 2px 10px #0000000b}
+h2{font-size:19px;margin:0 0 14px}
+input{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid #ccd5cf;border-radius:10px;font-size:16px}
+button{border:0;border-radius:11px;padding:13px 16px;font-size:16px;font-weight:600;cursor:pointer}
+.primary{background:#176b4d;color:white;width:100%}
+.secondary{background:#e6eee9;color:#176b4d}
+button:disabled{opacity:.45}
+.muted{color:#68736c;font-size:14px}
+.task{font-size:17px;line-height:1.5;margin:14px 0}
+.check{display:flex;align-items:center;gap:12px;background:#eef5f0;padding:16px;border-radius:12px;margin-top:18px}
+.check input{width:24px;height:24px;margin:0;flex-shrink:0}
+.progress{height:7px;background:#e0e7e2;border-radius:10px;overflow:hidden;margin:12px 0}
+.progress div{height:100%;background:#24966a;width:0}
+.hidden{display:none!important}
+.nav{display:flex;gap:10px;margin-bottom:14px}
+.nav button{flex:1}
+.history-item{padding:13px 0;border-bottom:1px solid #e6eae7}
+.status{font-size:20px;margin-right:8px}
+.small{font-size:13px;color:#68736c}
+</style>
+</head>
+<body>
+<header>
+  <h1>Мой рабочий день</h1>
+  <p id="today"></p>
+</header>
+<main>
+  <div class="nav">
+    <button class="secondary" onclick="showHome()">＋ Новый чек-лист</button>
+    <button class="secondary" onclick="showHistory()">История</button>
+  </div>
+
+  <section id="home">
+    <div class="card" id="start">
+      <h2>Начало рабочего дня</h2>
+      <p class="muted">Заполни данные перед началом проверки.</p>
+      <input id="seller" placeholder="ФИО продавца" autocomplete="name">
+      <input id="store" placeholder="ТЦ / магазин">
+      <button class="primary" onclick="startChecklist()">Начать чек-лист</button>
+    </div>
+
+    <div class="card hidden" id="work">
+      <p class="muted" id="identity"></p>
+      <h2 id="section"></h2>
+      <div id="count" class="muted"></div>
+      <div class="progress"><div id="bar"></div></div>
+      <div id="task" class="task"></div>
+      <label class="check">
+        <input type="checkbox" id="done" onchange="completeTask()">
+        <span>Выполнено</span>
+      </label>
+      <p class="muted" id="hint">Отмечай пункт после выполнения — откроется следующий.</p>
+    </div>
+
+    <div class="card hidden" id="confirm">
+      <h2>Все пункты выполнены!</h2>
+      <p>Подтверждаю достоверность заполненных данных</p>
+      <button class="primary" onclick="finishChecklist()">Да</button>
+    </div>
+
+    <div class="card hidden" id="thanks">
+      <h2>Спасибо за еще один рабочий день!</h2>
+      <p>Чек-лист сохранён в истории на этом устройстве.</p>
+      <button class="primary" onclick="newChecklist()">Новый чек-лист</button>
+    </div>
+  </section>
+
+  <section id="history" class="hidden">
+    <div class="card">
+      <h2>История чек-листов</h2>
+      <div id="historyList"></div>
+    </div>
+  </section>
+</main>
+
+<script>
+const sections = [
+ {name:"Утро", tasks:[
+ "Приход: СТРОГО за 15 минут до открытия ТЦ (9:45)",
+ "Дресс-код: строго согласно стандартам (белая рубашка, черные брюки, черный пиджак, черные туфли)",
+ "Освещение: Включены и работают все лампы, витрина, вывеска, подиумы, подсветка",
+ "Чистота: Кресла протерты от пыли (обивка, подлокотники, подголовник, пятилучья, колеса)",
+ "Выкладка: Кресла расставлены по файлу «Принципы представленности» (все регулировки и расстояния соблюдены)",
+ "Материалы: В наличии актуальные каталоги и раздаточные материалы",
+ "Рабочий стол: Подготовлен (блокнот, ручка, телефон). Нет личных вещей, сумок, стаканов с водой/кофе.",
+ "Битрикс24: Изучена вся новая информация.",
+ "Отчетность: Корректно заполнены таблицы за прошлый период (Свод, Заказы, Товар со склада, План мероприятий, Воронка, Табель)."
+ ]},
+ {name:"В течение дня", tasks:[
+ "Порядок в зале: Нет еды, напитков и посторонних предметов.",
+ "Рабочее место: Стол и тумба принтера в порядке, документы и бумаги убраны.",
+ "Клиенты: Отправлены SMS по шаблонам всем клиентам в зависимости от ситуации."
+ ]},
+ {name:"Вечер", tasks:[
+ "Режим работы: Закрытие строго по графику работы ТЦ.",
+ "Инкассация: Выполнена в тот же день.",
+ "Касса: Расход по кассе проведён в тот же день."
+ ]}
+];
+
+const allTasks = sections.flatMap((s,si)=>s.tasks.map(t=>({section:s.name,text:t,si})));
+const key="dailyChecklistHistory_v1";
+let current=null;
+let index=0;
+let checked=[];
+
+function localDate(){
+ const d=new Date();
+ return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+}
+function dateLabel(date=localDate()){
+ return new Date(date+"T12:00:00").toLocaleDateString("ru-RU",{day:"numeric",month:"long",year:"numeric"});
+}
+document.getElementById("today").textContent=dateLabel();
+
+function records(){
+ try{return JSON.parse(localStorage.getItem(key)||"[]")}catch(e){return []}
+}
+function saveRecords(items){localStorage.setItem(key,JSON.stringify(items))}
+function showHome(){
+ document.getElementById("history").classList.add("hidden");
+ document.getElementById("home").classList.remove("hidden");
+}
+function showHistory(){
+ document.getElementById("home").classList.add("hidden");
+ document.getElementById("history").classList.remove("hidden");
+ renderHistory();
+}
+function startChecklist(){
+ const seller=document.getElementById("seller").value.trim();
+ const store=document.getElementById("store").value.trim();
+ if(!seller||!store){alert("Укажи ФИО продавца и ТЦ / магазин.");return}
+ current={id:Date.now(),date:localDate(),seller,store,completed:false,answers:[]};
+ index=0;checked=[];
+ document.getElementById("start").classList.add("hidden");
+ document.getElementById("thanks").classList.add("hidden");
+ document.getElementById("confirm").classList.add("hidden");
+ document.getElementById("work").classList.remove("hidden");
+ renderTask();
+}
+function renderTask(){
+ const t=allTasks[index];
+ document.getElementById("identity").textContent=current.seller+" · "+current.store;
+ document.getElementById("section").textContent=t.section;
+ document.getElementById("count").textContent="Пункт "+(index+1)+" из "+allTasks.length;
+ document.getElementById("bar").style.width=(index/allTasks.length*100)+"%";
+ document.getElementById("task").textContent=t.text;
+ document.getElementById("done").checked=!!checked[index];
+ document.getElementById("hint").textContent="Отмечай пункт после выполнения — откроется следующий.";
+}
+function completeTask(){
+ if(!document.getElementById("done").checked)return;
+ checked[index]=true;
+ current.answers=checked.slice();
+ if(index<allTasks.length-1){index++;renderTask();}
+ else{
+  document.getElementById("work").classList.add("hidden");
+  document.getElementById("confirm").classList.remove("hidden");
+  document.getElementById("bar").style.width="100%";
+ }
+}
+function finishChecklist(){
+ current.completed=true;
+ current.finishedAt=new Date().toISOString();
+ const list=records();
+ list.unshift(current);
+ saveRecords(list);
+ document.getElementById("confirm").classList.add("hidden");
+ document.getElementById("thanks").classList.remove("hidden");
+}
+function newChecklist(){
+ current=null;index=0;checked=[];
+ document.getElementById("seller").value="";
+ document.getElementById("store").value="";
+ document.getElementById("thanks").classList.add("hidden");
+ document.getElementById("work").classList.add("hidden");
+ document.getElementById("confirm").classList.add("hidden");
+ document.getElementById("start").classList.remove("hidden");
+ showHome();
+}
+function renderHistory(){
+ const list=records();
+ const root=document.getElementById("historyList");
+ root.innerHTML="";
+ if(!list.length){root.textContent="Пока нет сохранённых чек-листов.";return}
+ list.forEach(item=>{
+  const div=document.createElement("div");
+  div.className="history-item";
+  const status=document.createElement("span");
+  status.className="status";
+  status.textContent=item.completed?"✅":"🟡🟡🟡";
+  const title=document.createElement("strong");
+  title.textContent=item.seller;
+  const meta=document.createElement("div");
+  meta.className="small";
+  meta.textContent=dateLabel(item.date)+" · "+item.store;
+  div.append(status,title,meta);
+  root.appendChild(div);
+ });
+}
+</script>
+</body>
+</html>
