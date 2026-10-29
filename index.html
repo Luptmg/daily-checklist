@@ -75,6 +75,9 @@ th{background:var(--table-head)}
   <p id="today"></p>
   <button id="settingsToggle" class="settings-toggle" type="button" aria-label="Настройки" aria-expanded="false" onclick="toggleSettingsMenu(event)">🔧</button>
   <div id="settingsMenu" class="settings-menu hidden">
+    <div class="settings-label">Оформление</div>
+    <button id="themeToggle" class="secondary" type="button" onclick="toggleTheme()">Включить тёмную тему</button>
+    <div class="settings-divider"></div>
     <p id="settingsLoginHint" class="settings-description">Войдите в аккаунт, чтобы получить доступ к настройкам.</p>
     <button id="passwordSettingsButton" class="secondary" type="button" onclick="openPasswordFromSettings()">Сменить пароль</button>
     <div id="notificationsSettings">
@@ -282,8 +285,17 @@ function applyTheme(theme){
   document.documentElement.dataset.theme=chosen;
   const meta=document.querySelector('meta[name="theme-color"]');
   if(meta)meta.content=chosen==='dark'?'#171f30':'#2457c5';
+  const toggle=$('themeToggle');
+  if(toggle)toggle.textContent=chosen==='dark'?'Включить светлую тему':'Включить тёмную тему';
+  try{localStorage.setItem('dailyChecklistTheme',chosen);}catch(e){}
 }
-applyTheme('light');
+function toggleTheme(){
+  const current=document.documentElement.dataset.theme==='dark'?'dark':'light';
+  applyTheme(current==='dark'?'light':'dark');
+}
+let savedTheme='light';
+try{savedTheme=localStorage.getItem('dailyChecklistTheme')||'light';}catch(e){}
+applyTheme(savedTheme);
 
 function hidePages(){
   ['setup','home','work','historyPage','adminPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
