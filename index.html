@@ -88,6 +88,12 @@ textarea{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid va
 .sms-history-line{padding:10px 0;border-bottom:1px solid var(--border)}
 .sms-history-line:last-child{border-bottom:0}
 .sms-copy-button{margin-top:8px}
+.sms-customer-modal{position:fixed;inset:0;z-index:1000;background:#0009;display:flex;align-items:center;justify-content:center;padding:14px;overflow-y:auto}
+.sms-customer-dialog{position:relative;width:min(760px,100%);max-height:calc(100dvh - 28px);overflow-y:auto;background:var(--page);border:1px solid var(--border);border-radius:18px;padding:16px;box-shadow:0 18px 60px #0006}
+.sms-modal-close{position:sticky;top:0;z-index:5;display:flex;justify-content:flex-end;margin:-4px -4px 8px}
+.sms-modal-close button{width:42px;height:42px;padding:0;font-size:24px;border-radius:50%;background:var(--surface-soft);color:var(--text);border:1px solid var(--border)}
+body.sms-modal-open{overflow:hidden}
+@media(max-width:560px){.sms-customer-modal{padding:0;align-items:flex-end}.sms-customer-dialog{width:100%;max-height:94dvh;border-radius:18px 18px 0 0;padding:14px}}
 .sms-config-fields{padding:8px 0}
 .sms-board-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}
 .sms-board-tab{background:var(--surface-soft);color:var(--text);border:1px solid var(--border);padding:11px 7px;font-size:13px;line-height:1.25}
@@ -246,7 +252,7 @@ textarea{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid va
       <div class="row" id="smsCreateLauncher" style="justify-content:flex-end;margin:10px 0">
         <button class="primary sms-create-toggle" type="button" onclick="toggleSmsCreateForm(true)" aria-label="Создать новую карточку">+</button>
       </div>
-      <div id="smsCustomerDetails"></div>
+      <div id="smsCustomerDetails" class="hidden"></div>
     </section>
     <section id="passwordPage" class="card hidden">
       <h2>Смена пароля</h2>
@@ -1542,7 +1548,8 @@ async function openSmsCustomer(id,orderId=null){
     const o=await sb.from('sms_orders').select('id,order_number,created_at,comment').eq('customer_id',id).order('created_at',{ascending:false});
     if(o.error)throw o.error;
     const root=$('smsCustomerDetails');
-    root.innerHTML='<div class="card"><h2>'+smsEsc(smsCustomer.full_name)+'</h2><p class="muted">'+smsEsc(smsCustomer.phone)+' · '+smsAgo(smsCustomer.last_activity_at)+'</p><p>'+smsEsc(smsCustomer.comment||'Комментарий не указан')+'</p><h3>Заказы</h3><div id="smsOrderList"></div><input id="smsAddOrderNumber" placeholder="Номер нового заказа"><button class="secondary" onclick="addSmsOrder()">Добавить заказ</button></div>';
+    root.classList.remove('hidden');document.body.classList.add('sms-modal-open');
+    root.innerHTML='<div class="sms-customer-modal" role="presentation" onclick="if(event.target===this)closeSmsCustomer()"><div class="sms-customer-dialog" role="dialog" aria-modal="true" aria-label="Карточка клиента"><div class="sms-modal-close"><button type="button" onclick="closeSmsCustomer()" aria-label="Закрыть окно">×</button></div><div class="card"><h2>'+smsEsc(smsCustomer.full_name)+'</h2><p class="muted">'+smsEsc(smsCustomer.phone)+' · '+smsAgo(smsCustomer.last_activity_at)+'</p><p>'+smsEsc(smsCustomer.comment||'Комментарий не указан')+'</p><h3>Заказы</h3><div id="smsOrderList"></div><input id="smsAddOrderNumber" placeholder="Номер нового заказа"><button class="secondary" onclick="addSmsOrder()">Добавить заказ</button></div></div></div>';
     const list=$('smsOrderList');
     (o.data||[]).forEach(item=>{
       const b=document.createElement('button');b.className='section-button';b.innerHTML='<span><strong>Заказ №'+smsEsc(item.order_number)+'</strong><small>Создан '+new Date(item.created_at).toLocaleDateString('ru-RU')+'</small></span><span>Выбрать</span>';b.onclick=()=>selectSmsOrder(item.id);list.append(b);
@@ -1550,6 +1557,11 @@ async function openSmsCustomer(id,orderId=null){
     if(orderId){step='открытие заказа';await selectSmsOrder(orderId);}
   }catch(e){msg('Не удалось открыть карточку (этап: '+step+'): '+e.message,'notice error');}
 }
+function closeSmsCustomer(){
+  const root=$('smsCustomerDetails');if(root){root.classList.add('hidden');root.innerHTML='';}
+  document.body.classList.remove('sms-modal-open');smsCustomer=null;smsOrder=null;smsLines=[];
+}
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('smsCustomerDetails')?.classList.contains('hidden'))closeSmsCustomer();});
 async function addSmsOrder(){
   const n=$('smsAddOrderNumber').value.trim();if(!n||!smsCustomer)return;
   const r=await sb.from('sms_orders').insert({customer_id:smsCustomer.id,order_number:n}).select('id').single();
