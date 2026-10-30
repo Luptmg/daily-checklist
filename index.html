@@ -1573,8 +1573,6 @@ async function loadSmsLines(){
 async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind,lineLastBefore,customerLastBefore,lineStatusBefore,lineCompletedBefore){
   if(!confirm('Удалить ошибочное копирование из истории и отменить его влияние на линию?'))return;
   try{
-    const later=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('order_id',smsOrder.id).gt('copied_at',new Date().toISOString().slice(0,0)+'1970-01-01');
-    if(later.error)throw later.error;
     const current=await sb.from('sms_messages').select('id,copied_at').eq('id',messageId).single();if(current.error)throw current.error;
     const newer=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('order_id',smsOrder.id).gt('copied_at',current.data.copied_at);
     if(newer.error)throw newer.error;
@@ -1599,7 +1597,7 @@ async function loadSmsLineBoards(){
   const root=$('smsLineBoards');root.innerHTML='Загружаю линии…';
   try{
     let q=sb.from('sms_lines').select('id,order_id,line_kind,status,initial_stage,current_stage,last_action_at,store_id,created_by_employee_id,stores(name),employees(full_name),sms_orders(order_number,customer_id,sms_customers(full_name,phone))').order('last_action_at',{ascending:false}).limit(500);
-    if(profile?.role==='employee')q=q.eq('store_id',day.store_id);else if($('smsAdminStore')?.value)q=q.eq('store_id',$('smsAdminStore').value);
+    if(profile?.role==='employee')q=q.eq('store_id',day.store_id);else {if($('smsAdminStore')?.value)q=q.eq('store_id',$('smsAdminStore').value);if($('smsAdminEmployee')?.value)q=q.eq('created_by_employee_id',$('smsAdminEmployee').value);}
     const r=await q;if(r.error)throw r.error;const rows=r.data||[];
     const mine=profile?.role==='employee'?rows.filter(x=>x.created_by_employee_id===employee.id&&x.status==='active'):rows.filter(x=>x.status==='active');
     const active=rows.filter(x=>x.status==='active'),done=rows.filter(x=>x.status==='completed');
