@@ -1517,6 +1517,7 @@ function previewSms(){
 async function copySmsMessage(){
   if(profile?.role!=='employee'||!employee||!day?.store_id){msg('Копировать сообщения может сотрудник с активным рабочим днём.','notice error');return;}
   const key=$('smsTemplate').value,t=smsTemplates[key],store=stores.find(s=>s.id===day.store_id);
+  if(key==='configuration'&&!$('smsLink1').value.trim()){msg('Для шаблона «Конфигурация» нужна ссылка на конфигурацию №1.','notice error');return;}
   const {data:existing,error}=await sb.from('sms_lines').select('*').eq('order_id',smsOrder.id);
   if(error){msg(error.message,'notice error');return;}
   const main=existing.find(x=>x.line_kind==='main');
@@ -1577,6 +1578,7 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
     const newer=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('order_id',smsOrder.id).gt('copied_at',current.data.copied_at);
     if(newer.error)throw newer.error;
     if(newer.count>0){msg('Можно отменить только последнее копирование в заказе.','notice error');return;}
+    if(customerLastBefore&&smsCustomer.last_activity_at&&new Date(smsCustomer.last_activity_at)-new Date(current.data.copied_at)>5000){msg('После этого копирования были другие действия с клиентом. Отмена старого действия не разрешена.','notice error');return;}
     const del=await sb.from('sms_messages').delete().eq('id',messageId);if(del.error)throw del.error;
     if(stageAfter&&(!stageBefore||!lineStatusBefore)){const d=await sb.from('sms_lines').delete().eq('id',lineId);if(d.error)throw d.error;}
     else{
@@ -1612,7 +1614,8 @@ async function loadSmsLineBoards(){
         b.onclick=()=>openSmsCustomer(customer?.id,x.order_id);card.append(b);
       });root.append(card);
     };
-    addGroup('Мои текущие линии',mine);addGroup('Текущие линии магазина',active);addGroup('Завершённые линии',done);
+    if(profile?.role==='employee'){addGroup('Мои текущие линии',mine);addGroup('Текущие линии магазина',active);}else{addGroup('Текущие линии',active);}
+    addGroup('Завершённые линии',done);
   }catch(e){root.textContent='Не удалось загрузить линии: '+e.message;}
 }
 
