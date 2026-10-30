@@ -837,6 +837,7 @@ async function completeTask(){
 
   try{
     await persistSection(s.key);
+    if(box.checked&&taskIndex<s.tasks.length-1)taskIndex++;
     renderTask();
   }catch(err){
     state.answers[taskIndex]=oldAnswer;
