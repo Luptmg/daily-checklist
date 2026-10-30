@@ -973,6 +973,40 @@ async function showHistory(){
 }
 
 let adminDashboardRows=[];let adminDashboardFilter="all";let adminSelectedWorkday=null;
+async function showAdmin(){await showAdminHome();}
+async function showAdminHistory(){
+  if(profile?.role!=="admin")return;
+  hidePages();
+  setAdminNav("historyNav");
+  $("adminHistoryPage").classList.remove("hidden");
+  const employeeSelect=$("historyEmployee");
+  const storeSelect=$("historyStore");
+  try{
+    const [employeeResult]=await Promise.all([
+      sb.from("employees").select("id,full_name").order("full_name")
+    ]);
+    if(employeeResult.error)throw employeeResult.error;
+    const selectedEmployee=employeeSelect.value;
+    employeeSelect.innerHTML='<option value="">Все сотрудники</option>';
+    (employeeResult.data||[]).forEach(item=>{
+      const option=document.createElement("option");
+      option.value=item.id;option.textContent=item.full_name||"Сотрудник";
+      employeeSelect.append(option);
+    });
+    if(selectedEmployee)employeeSelect.value=selectedEmployee;
+    const selectedStore=storeSelect.value;
+    storeSelect.innerHTML='<option value="">Все магазины</option>';
+    stores.forEach(item=>{
+      const option=document.createElement("option");
+      option.value=item.id;option.textContent=item.name||"Магазин";
+      storeSelect.append(option);
+    });
+    if(selectedStore)storeSelect.value=selectedStore;
+    await loadAdminHistory();
+  }catch(error){
+    $("adminHistoryResults").textContent="Не удалось открыть историю: "+(error.message||error);
+  }
+}
 async function showAdminHome(){if(profile?.role!=="admin")return;hidePages();setAdminNav("homeNav");$("adminHomePage").classList.remove("hidden");if(!$("dashboardDateInput").value)$("dashboardDateInput").value=todayKey();await loadAdminDashboard();}
 async function loadAdminDashboard(){if(profile?.role!=="admin")return;const root=$("dashboardResults");root.textContent="Загрузка…";try{const date=$("dashboardDateInput").value||todayKey();const r=await sb.from("workdays").select("id,employee_id,work_date,store_id,checked_in_at,arrival_status,confirmed_at,employees(full_name),stores(name),section_progress(section_key,answers,comments,completed_at)").eq("work_date",date).order("created_at",{ascending:true}).limit(500);if(r.error)throw r.error;adminDashboardRows=r.data||[];renderAdminDashboardList();}catch(e){root.textContent="Не удалось загрузить список: "+(e.message||e);}}
 function adminWorkdayState(item){if(item.confirmed_at)return "done";const p=getProgressStats(item.section_progress||[]);return item.checked_in_at||p.done||p.failed||(item.section_progress||[]).some(x=>x.completed_at)?"progress":"new";}
