@@ -1593,6 +1593,7 @@ async function selectSmsOrder(id){
 }
 function getSmsRecommendedTemplateKeys(){
   const main=smsLines.find(x=>x.line_kind==='main');
+  // Основная линия — единственная. После её завершения новую линию в этом заказе не начинаем.
   if(main){
     if(main.status==='completed')return [];
     if(main.current_stage==='accepted')return ['warehouse_pickup','warehouse_delivery'];
@@ -1601,6 +1602,7 @@ function getSmsRecommendedTemplateKeys(){
   }
   const hasConfig=smsLines.some(x=>x.line_kind==='standalone'&&x.initial_stage==='configuration');
   const hasTerminal=smsLines.some(x=>x.line_kind==='standalone'&&['review','thanks'].includes(x.initial_stage));
+  // Повторный старт разрешён только после самостоятельной линии «Конфигурация».
   if(hasTerminal)return [];
   if(hasConfig)return ['warehouse_pickup','dispatch','accepted'];
   if(!smsLines.length)return ['accepted','warehouse_pickup','dispatch','configuration','review','thanks'];
@@ -1609,16 +1611,22 @@ function getSmsRecommendedTemplateKeys(){
 function renderSmsOrder(){
   const root=$('smsCustomerDetails');const old=$('smsOrderWork');if(old)old.remove();
   const recommended=getSmsRecommendedTemplateKeys();
+  const canContinue=recommended.length>0;
   const recommendedOptions=recommended.map(k=>'<option value="'+k+'">'+smsEsc(smsTemplates[k].name)+'</option>').join('');
   const allOptions=Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('');
-  const defaultKey=recommended[0]||'configuration';
+  const defaultKey=recommended[0]||'';
   const currentLine=smsLines.find(l=>l.line_kind==='main'&&l.status==='active');
   const currentStage=currentLine?(smsTemplates[currentLine.current_stage]?.name||currentLine.current_stage):'Нет активной линии';
-  const html='<div class="card sms-order-card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><div class="sms-order-meta"><span>Создан '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</span><span>·</span><span>'+(currentLine?'Текущий этап: '+smsEsc(currentStage):'Можно начать новую линию')+'</span></div><div class="sms-step-card"><label for="smsTemplate">СЛЕДУЮЩЕЕ СООБЩЕНИЕ</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+(recommendedOptions||'<option value="configuration">Конфигурация</option>')+'</select><details class="sms-details" id="smsOtherTemplates"><summary>Другие шаблоны</summary><div class="sms-details-body"><label for="smsOtherTemplate">Выбрать шаблон</label><select id="smsOtherTemplate" onchange="selectSmsOtherTemplate()">'+allOptions+'</select></div></details><div id="smsConfigFields" class="sms-config-fields hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><details class="sms-details" id="smsPreviewDetails"><summary>Посмотреть текст сообщения</summary><div class="sms-details-body"><div id="smsPreview" class="sms-message"></div></div></details><button class="primary sms-copy-button" type="button" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
+  const statusText=currentLine?'Текущий этап: '+smsEsc(currentStage):(canContinue?'Можно начать новую линию':'Все линии этого заказа завершены');
+  const lockedNotice='<div class="notice">Все линии этого заказа завершены. Начать ещё одну линию нельзя.</div>';
+  const workControls=canContinue
+    ? '<div class="sms-step-card"><label for="smsTemplate">СЛЕДУЮЩЕЕ СООБЩЕНИЕ</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+recommendedOptions+'</select><details class="sms-details" id="smsOtherTemplates"><summary>Другие шаблоны</summary><div class="sms-details-body"><label for="smsOtherTemplate">Выбрать шаблон</label><select id="smsOtherTemplate" onchange="selectSmsOtherTemplate()">'+allOptions+'</select></div></details><div id="smsConfigFields" class="sms-config-fields hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><details class="sms-details" id="smsPreviewDetails"><summary>Посмотреть текст сообщения</summary><div class="sms-details-body"><div id="smsPreview" class="sms-message"></div></div></details><button class="primary sms-copy-button" type="button" onclick="copySmsMessage()">Скопировать SMS</button>'
+    : lockedNotice;
+  const html='<div class="card sms-order-card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><div class="sms-order-meta"><span>Создан '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</span><span>·</span><span>'+statusText+'</span></div>'+workControls+'<div id="smsLineList"></div></div>';
   const previous=$('smsOrderModal');if(previous)previous.remove();
   document.body.insertAdjacentHTML('beforeend','<div id="smsOrderModal" class="sms-order-modal" role="presentation" onclick="if(event.target===this)closeSmsOrderView()"><div class="sms-order-dialog" role="dialog" aria-modal="true" aria-label="Работа с заказом"><div class="sms-modal-close"><button type="button" onclick="closeSmsOrderView()" aria-label="Закрыть заказ">×</button></div><div id="smsOrderWork">'+html+'</div></div></div>');
-  if(recommended.length)$('smsTemplate').value=defaultKey;
-  renderSmsLines();updateSmsTemplateFields();
+  if(canContinue)$('smsTemplate').value=defaultKey;
+  renderSmsLines();if(canContinue)updateSmsTemplateFields();
 }
 function toggleSmsOtherTemplates(){
   const panel=$('smsOtherTemplates');if(panel)panel.open=!panel.open;
