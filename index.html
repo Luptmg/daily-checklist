@@ -1016,7 +1016,7 @@ async function editAdminArrival(item){
   const value=prompt("Укажи новое время прихода (чч:мм):",current);
   if(value===null)return;
   const time=value.trim();
-  if(!/^([01]\\d|2[0-3]):[0-5]\\d$/.test(time)){msg("Введи время в формате ЧЧ:ММ, например 09:30.","notice error");return;}
+  if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)){msg("Введи время в формате ЧЧ:ММ, например 09:30.","notice error");return;}
   try{
     const {data,error}=await sb.rpc("admin_update_workday_arrival",{p_workday_id:item.id,p_arrival_time:time});
     if(error)throw error;
@@ -1033,8 +1033,8 @@ function renderAdminDashboardList(){
   const root=$("dashboardResults");if(!root)return;root.innerHTML="";
   const query=($("dashboardSearch")?.value||"").trim().toLocaleLowerCase("ru");
   const rows=adminDashboardRows.filter(x=>(adminDashboardFilter==="all"||adminWorkdayState(x)===adminDashboardFilter)&&((x.employees?.full_name||"")+" "+(x.stores?.name||"")).toLocaleLowerCase("ru").includes(query)).sort((a,b)=>(a.employees?.full_name||"").localeCompare(b.employees?.full_name||"","ru"));
-  if(!adminDashboardRows.length){root.innerHTML="<div class="admin-empty"><strong>Нет рабочих дней</strong><span>На выбранную дату пока нет созданных рабочих дней. Можно выбрать другую дату.</span></div>";return;}
-  if(!rows.length){root.innerHTML="<div class="admin-empty">По выбранному фильтру ничего не найдено.</div>";return;}
+  if(!adminDashboardRows.length){root.innerHTML='<div class="admin-empty"><strong>Нет рабочих дней</strong><span>На выбранную дату пока нет созданных рабочих дней. Можно выбрать другую дату.</span></div>';return;}
+  if(!rows.length){root.innerHTML='<div class="admin-empty">По выбранному фильтру ничего не найдено.</div>';return;}
   const groups=[{id:"progress",title:"В работе"},{id:"done",title:"Завершённые"},{id:"new",title:"Не начатые"}];
   groups.forEach(g=>{
     const list=rows.filter(x=>adminWorkdayState(x)===g.id);if(!list.length)return;
@@ -1048,7 +1048,7 @@ function renderAdminDashboardList(){
       const meta=document.createElement("span");meta.className="small";
       const arrival=item.checked_in_at?new Date(item.checked_in_at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})+(item.arrival_status==="on_time"?" · вовремя":" · опоздание"):"Приход не отмечен";
       meta.textContent=(item.stores?.name||"Магазин")+" · "+arrival;
-      const prog=document.createElement("span");prog.className="admin-row-progress";prog.innerHTML="<span class=\\"progress\\"><span style=\\"width:"+p.percent+"%\\"></span></span><small>"+p.percent+"% · "+p.done+"/"+p.total+"</small>";
+      const prog=document.createElement("span");prog.className="admin-row-progress";prog.innerHTML='<span class="progress"><span style="width:'+p.percent+'%"></span></span><small>'+p.percent+'% · '+p.done+'/'+p.total+'</small>';
       row.append(top,meta,prog);row.onclick=()=>openAdminWorkday(item);
       const edit=document.createElement("button");edit.type="button";edit.className="secondary";edit.textContent="Изменить время";edit.style.width="100%";edit.style.marginTop="8px";edit.onclick=()=>editAdminArrival(item);
       wrap.append(row,edit);root.append(wrap);
