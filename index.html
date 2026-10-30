@@ -1526,7 +1526,7 @@ async function copySmsMessage(){
     }else{
       if(!t.start){msg('Этот шаблон не может начинать линию.','notice error');return;}
       const fromConfig=hasConfig&&['warehouse_pickup','dispatch','accepted'].includes(key);
-      const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:'active',initial_stage:fromConfig?'configuration':key,current_stage:fromConfig?'configuration':key,started_after_configuration:fromConfig}).select('*').single();
+      const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:'active',initial_stage:fromConfig?'configuration':key,current_stage:key,started_after_configuration:fromConfig}).select('*').single();
       if(ins.error)throw ins.error;line=ins.data;stageBefore=fromConfig?'configuration':null;stageAfter=key;
     }
   }else{
