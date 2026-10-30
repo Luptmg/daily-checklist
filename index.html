@@ -1501,18 +1501,24 @@ async function createSmsCustomerOrder(){
   }
 }
 async function openSmsCustomer(id,orderId=null){
-  const r=await sb.from('sms_customers').select('id,full_name,phone,comment,primary_store_id,last_activity_at,creator:employees!sms_customers_created_by_employee_id_fkey(full_name)').eq('id',id).single();
-  if(r.error){msg(r.error.message,'notice error');return;}
-  smsCustomer=r.data;
-  const o=await sb.from('sms_orders').select('id,order_number,created_at,comment').eq('customer_id',id).order('created_at',{ascending:false});
-  if(o.error)throw o.error;
-  const root=$('smsCustomerDetails');
-  root.innerHTML='<div class="card"><h2>'+smsEsc(smsCustomer.full_name)+'</h2><p class="muted">'+smsEsc(smsCustomer.phone)+' · '+smsAgo(smsCustomer.last_activity_at)+'</p><p>'+smsEsc(smsCustomer.comment||'Комментарий не указан')+'</p><h3>Заказы</h3><div id="smsOrderList"></div><input id="smsAddOrderNumber" placeholder="Номер нового заказа"><button class="secondary" onclick="addSmsOrder()">Добавить заказ</button></div>';
-  const list=$('smsOrderList');
-  (o.data||[]).forEach(item=>{
-    const b=document.createElement('button');b.className='section-button';b.innerHTML='<span><strong>Заказ №'+smsEsc(item.order_number)+'</strong><small>Создан '+new Date(item.created_at).toLocaleDateString('ru-RU')+'</small></span><span>Выбрать</span>';b.onclick=()=>selectSmsOrder(item.id);list.append(b);
-  });
-  if(orderId)await selectSmsOrder(orderId);
+  let step='проверка ID клиента';
+  try{
+    if(!id||id==='undefined'||id==='null')throw new Error('Не передан ID клиента.');
+    step='загрузка карточки клиента';
+    const r=await sb.from('sms_customers').select('id,full_name,phone,comment,primary_store_id,last_activity_at,creator:employees!sms_customers_created_by_employee_id_fkey(full_name)').eq('id',id).single();
+    if(r.error)throw r.error;
+    smsCustomer=r.data;
+    step='загрузка заказов клиента';
+    const o=await sb.from('sms_orders').select('id,order_number,created_at,comment').eq('customer_id',id).order('created_at',{ascending:false});
+    if(o.error)throw o.error;
+    const root=$('smsCustomerDetails');
+    root.innerHTML='<div class="card"><h2>'+smsEsc(smsCustomer.full_name)+'</h2><p class="muted">'+smsEsc(smsCustomer.phone)+' · '+smsAgo(smsCustomer.last_activity_at)+'</p><p>'+smsEsc(smsCustomer.comment||'Комментарий не указан')+'</p><h3>Заказы</h3><div id="smsOrderList"></div><input id="smsAddOrderNumber" placeholder="Номер нового заказа"><button class="secondary" onclick="addSmsOrder()">Добавить заказ</button></div>';
+    const list=$('smsOrderList');
+    (o.data||[]).forEach(item=>{
+      const b=document.createElement('button');b.className='section-button';b.innerHTML='<span><strong>Заказ №'+smsEsc(item.order_number)+'</strong><small>Создан '+new Date(item.created_at).toLocaleDateString('ru-RU')+'</small></span><span>Выбрать</span>';b.onclick=()=>selectSmsOrder(item.id);list.append(b);
+    });
+    if(orderId){step='открытие заказа';await selectSmsOrder(orderId);}
+  }catch(e){msg('Не удалось открыть карточку (этап: '+step+'): '+e.message,'notice error');}
 }
 async function addSmsOrder(){
   const n=$('smsAddOrderNumber').value.trim();if(!n||!smsCustomer)return;
@@ -1521,12 +1527,18 @@ async function addSmsOrder(){
   await openSmsCustomer(smsCustomer.id,r.data.id);
 }
 async function selectSmsOrder(id){
-  const r=await sb.from('sms_orders').select('id,order_number,created_at').eq('id',id).single();if(r.error)throw r.error;smsOrder=r.data;
-  const storeId=profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id;
-  const lineQuery=sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,copier:employees!sms_messages_copied_by_employee_id_fkey(full_name))').eq('order_id',id).order('created_at',{ascending:false});
-  if(storeId)lineQuery.eq('store_id',storeId);
-  const l=await lineQuery;if(l.error)throw l.error;smsLines=l.data||[];
-  renderSmsOrder();
+  let step='проверка ID заказа';
+  try{
+    if(!id||id==='undefined'||id==='null')throw new Error('Не передан ID заказа.');
+    step='загрузка заказа';
+    const r=await sb.from('sms_orders').select('id,order_number,created_at').eq('id',id).single();if(r.error)throw r.error;smsOrder=r.data;
+    step='загрузка линий заказа';
+    const storeId=profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id;
+    const lineQuery=sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,copier:employees!sms_messages_copied_by_employee_id_fkey(full_name))').eq('order_id',id).order('created_at',{ascending:false});
+    if(storeId)lineQuery.eq('store_id',storeId);
+    const l=await lineQuery;if(l.error)throw l.error;smsLines=l.data||[];
+    step='отрисовка заказа';renderSmsOrder();
+  }catch(e){msg('Не удалось открыть заказ (этап: '+step+'): '+e.message,'notice error');}
 }
 function renderSmsOrder(){
   const root=$('smsCustomerDetails');const old=$('smsOrderWork');if(old)old.remove();let html='<div class="card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><p class="muted">Дата создания: '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</p><div class="sms-grid"><div><label>Шаблон</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('')+'</select></div><div id="smsConfigFields" class="hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><div id="smsPreview" class="sms-message"></div><button class="primary" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
