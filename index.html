@@ -174,7 +174,7 @@ body.sms-modal-open{overflow:hidden}
     </div>
     <section id="adminHomePage" class="hidden"><div class="card">
       <div class="row"><h2>Рабочие дни</h2><button class="secondary" type="button" onclick="loadAdminDashboard()">Обновить</button></div>
-      <label for="dashboardDateInput">Дата</label><input type="date" id="dashboardDateInput">
+      <label for="dashboardDateInput">Дата</label><input type="date" id="dashboardDateInput" onchange="loadAdminDashboard()">
       <input id="dashboardSearch" type="search" placeholder="Поиск по сотруднику или магазину" oninput="renderAdminDashboardList()">
       <div id="dashboardFilters" class="admin-filters"><button type="button" data-filter="all" class="active">Все</button><button type="button" data-filter="progress">В работе</button><button type="button" data-filter="done">Завершённые</button><button type="button" data-filter="new">Не начатые</button></div>
       <div id="dashboardResults"></div></div></section>
