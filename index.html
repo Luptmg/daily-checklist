@@ -211,14 +211,7 @@ body.sms-modal-open{overflow:hidden}
         <p class="muted">Проверь заполнение разделов и подтверди завершение рабочего дня.</p>
         <button id="confirmWorkdayButton" class="primary" type="button" onclick="confirmWorkday()">Подтвердить рабочий день</button>
       </div>
-      <div class="card">
-        <h2>Разделы чек-листа</h2>
-        <div id="identity" class="muted"></div>
-        <div id="checkinArea"></div>
-        <div id="overallProgress"></div>
-        <p class="muted">Выбери нужный раздел. Незавершённый раздел можно продолжить позже.</p>
-        <div id="sections"></div>
-      </div>
+      <div class="card"><h2>Твой рабочий день</h2><div id="identity" class="muted"></div><div id="checkinArea"></div><div id="overallProgress"></div><button id="homeContinueButton" class="home-continue" type="button"><strong>Продолжить работу</strong></button><div id="homeContinueHint" class="small"></div><h3 style="margin:20px 0 4px">Разделы</h3><div id="sections"></div></div>
       <div id="finished" class="card hidden">
         <h2>Рабочий день подтверждён</h2>
         <p>Все разделы завершены и сохранены в общей базе.</p>
@@ -722,72 +715,24 @@ async function checkIn(){
 }
 
 function renderHome(){
-  const store=dayStore||stores.find(s=>s.id===day.store_id);
-  $('identity').textContent=`${employee.full_name} · ${store?.name||'Магазин'} · ${dateLabel(day.work_date)}`;
-  const ci=$('checkinArea');
-  ci.innerHTML='';
-  const line=document.createElement('p');
-  line.className='muted';
-
-  if(day.checked_in_at){
-    const status=day.arrival_status==='on_time'?'Вовремя':'Опоздание';
-    line.textContent=`Приход: ${new Date(day.checked_in_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',second:'2-digit'})} · ${status}`;
-    const badge=document.createElement('span');
-    badge.className='pill '+(day.arrival_status==='on_time'?'pill-ontime':'pill-late');
-    badge.textContent=day.arrival_status==='on_time'?'✓ Вовремя':'⚠ Опоздание';
-    ci.append(line,badge);
-    if(day.arrival_manually_edited){
-      const edited=document.createElement('div');
-      edited.className='small';
-      edited.textContent='Изменено администратором';
-      ci.append(edited);
-    }
-  }else{
-    line.textContent='Время прихода ещё не зафиксировано.';
-    const b=document.createElement('button');
-    b.className='primary';
-    b.textContent='Я на месте';
-    b.onclick=checkIn;
-    ci.append(line,b);
-  }
-
-  const totalTasks=sections.reduce((n,s)=>n+s.tasks.length,0);
-  const totalDone=sections.reduce((n,s)=>n+((progress[s.key]?.answers||[]).filter(Boolean).length),0);
-  const totalFailed=sections.reduce((n,s)=>n+Object.keys(progress[s.key]?.comments||{}).filter(k=>String(progress[s.key].comments[k]||'').trim()).length,0);
-  const percent=Math.round(totalDone/totalTasks*100);
-  $('overallProgress').innerHTML=`<div class="row"><strong>Общий прогресс</strong><strong>${percent}%</strong></div><div class="progress"><div style="width:${percent}%"></div></div><div class="small">Выполнено ${totalDone} из ${totalTasks} пунктов${totalFailed?` · не выполнено: ${totalFailed}`:''}</div>`;
-
-  const root=$('sections');
-  root.innerHTML='';
-  sections.forEach(s=>{
-    const state=progress[s.key];
-    const total=s.tasks.length;
-    const done=state.answers.filter(Boolean).length;
-    const failed=Object.keys(state.comments||{}).filter(k=>String(state.comments[k]||'').trim()).length;
-    const sectionPercent=Math.round(done/total*100);
-    const complete=state.completed;
-    const b=document.createElement('button');
-    b.className='section-button';
-    const left=document.createElement('span');
-    const strong=document.createElement('strong');
-    strong.textContent=s.name;
-    const small=document.createElement('small');
-    small.textContent=`Выполнено ${done} из ${total} (${sectionPercent}%)`+(failed?` · не выполнено: ${failed}`:'')+(complete?' · раздел заполнен':' · продолжить');
-    left.append(strong,small);
-    const status=document.createElement('span');
-    status.className='status';
-    status.textContent=complete?(failed?'⚠️':'✅'):'🟡🟡🟡';
-    b.append(left,status);
-    b.disabled=!!day.confirmed_at;
-    b.onclick=()=>openSection(s.key);
-    root.append(b);
-  });
-
-  const allDone=sections.every(s=>progress[s.key]?.completed);
-  $('finalConfirm').classList.toggle('hidden',!allDone||!!day.confirmed_at);
-  $('finished').classList.toggle('hidden',!day.confirmed_at);
+  const store=dayStore||stores.find(x=>x.id===day.store_id);
+  $('identity').textContent=employee.full_name+' · '+(store?.name||'Магазин')+' · '+dateLabel(day.work_date);
+  const ci=$('checkinArea');ci.innerHTML='';const check=document.createElement('div');check.className='home-checkin';
+  if(day.checked_in_at){const label=document.createElement('span');label.textContent='Приход · '+new Date(day.checked_in_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});const badge=document.createElement('span');badge.className='pill '+(day.arrival_status==='on_time'?'pill-ontime':'pill-late');badge.textContent=day.arrival_status==='on_time'?'Вовремя':'Опоздание';check.append(label,badge);if(day.arrival_manually_edited){const e=document.createElement('span');e.className='small';e.textContent='Изменено администратором';check.append(e);}}
+  else{const label=document.createElement('span');label.textContent='Приход ещё не отмечен';const b=document.createElement('button');b.className='primary';b.textContent='Я на месте';b.onclick=checkIn;check.append(label,b);}ci.append(check);
+  const total=sections.reduce((n,x)=>n+x.tasks.length,0),done=sections.reduce((n,x)=>n+(progress[x.key]?.answers||[]).filter(Boolean).length,0),failed=sections.reduce((n,x)=>n+Object.values(progress[x.key]?.comments||{}).filter(v=>String(v||'').trim()).length,0),pct=Math.round(done/total*100);
+  $('overallProgress').innerHTML='<div class="row"><strong>Общий прогресс</strong><strong>'+pct+'% · '+done+'/'+total+'</strong></div><div class="progress"><div style="width:'+pct+'%"></div></div><div class="small">'+failed+' не выполнено</div>';
+  const allDone=sections.every(x=>progress[x.key]?.completed),finished=!!day.confirmed_at,current=sections.find(x=>!progress[x.key]?.completed)||sections[0];
+  const cta=$('homeContinueButton'),hint=$('homeContinueHint');cta.classList.toggle('complete',finished);cta.disabled=finished;
+  if(finished){cta.innerHTML='<strong>Рабочий день завершён</strong>';hint.textContent='Все разделы подтверждены.';}
+  else if(allDone){cta.innerHTML='<strong>Подтвердить рабочий день</strong>';hint.textContent='Все разделы заполнены. Осталось подтвердить завершение.';cta.onclick=()=>$('finalConfirm').scrollIntoView({behavior:'smooth',block:'center'});}
+  else{cta.innerHTML='<strong>Продолжить работу</strong>';hint.textContent='Рекомендуемый раздел: '+current.name+'. Откроется первый незавершённый пункт.';cta.onclick=()=>openSection(current.key);}
+  const root=$('sections');root.innerHTML='';sections.forEach(section=>{const st=progress[section.key]||{answers:[],comments:{},completed:false},n=section.tasks.length,d=(st.answers||[]).filter(Boolean).length,f=Object.values(st.comments||{}).filter(v=>String(v||'').trim()).length,processed=d+f;
+    const row=document.createElement('button');row.type='button';row.className='home-section-row';const icon=document.createElement('span');icon.className='home-section-icon';icon.textContent=st.completed?(f?'!':'✓'):processed?'◷':'○';
+    const body=document.createElement('span');body.className='home-section-body';const title=document.createElement('strong');title.textContent=section.name;const meta=document.createElement('small');meta.textContent=d+' из '+n+' выполнено · '+f+' не выполнено';body.append(title,meta);
+    const status=document.createElement('span');status.className='home-section-status '+(st.completed?(f?'has-fail':'is-done'):processed?'is-progress':'is-new');status.textContent=st.completed?(f?'Есть замечания':'Завершён'):processed?'В работе':'Не начат';row.append(icon,body,status);row.disabled=finished;row.onclick=()=>openSection(section.key);root.append(row);});
+  $('finalConfirm').classList.toggle('hidden',!allDone||finished);$('finished').classList.toggle('hidden',!finished);
 }
-
 async function confirmWorkday(){
   if(profile?.role!=='employee'||!day||day.confirmed_at)return;
   const button=$('confirmWorkdayButton');
@@ -1059,61 +1004,19 @@ async function showHistory(){
   }
 }
 
-async function showAdminHome(){
-  if(profile?.role!=='admin')return;
-  hidePages();setAdminNav('homeNav');
-  $('adminHomePage').classList.remove('hidden');
-  $('dashboardDate').textContent=dateLabel(todayKey());
-  await loadAdminDashboard();
-}
-async function showAdminHistory(){
-  if(profile?.role!=='admin')return;
-  hidePages();setAdminNav('historyNav');
-  $('adminHistoryPage').classList.remove('hidden');
-  await loadAdminHistory();
-}
-function showAdmin(){
-  if(profile?.role!=='admin')return;
-  hidePages();setAdminNav('adminNav');
-  $('adminPage').classList.remove('hidden');
-  loadAdmin();
-}
-async function loadAdminDashboard(){
-  if(profile?.role!=='admin')return;
-  const root=$('dashboardResults'),stats=$('dashboardStats');
-  root.textContent='Загрузка…';stats.innerHTML='';
-  try{
-    const {data,error}=await sb.from('workdays')
-      .select('id,employee_id,work_date,store_id,checked_in_at,arrival_status,confirmed_at,employees(full_name),stores(name),section_progress(section_key,answers,comments,completed_at)')
-      .eq('work_date',todayKey()).order('created_at',{ascending:false}).limit(500);
-    if(error)throw error;
-    const rows=data||[];
-    const completed=rows.filter(x=>sections.every(s=>(x.section_progress||[]).some(p=>p.section_key===s.key&&!!p.completed_at))).length;
-    const arrived=rows.filter(x=>!!x.checked_in_at).length;
-    const late=rows.filter(x=>x.arrival_status==='late').length;
-    const percent=rows.length?Math.round(rows.reduce((n,x)=>n+getProgressStats(x.section_progress||[]).percent,0)/rows.length):0;
-    const metrics=[
-      ['Сотрудников',rows.length],['Отметили приход',arrived],['Опоздания',late],['Все пункты обработаны',completed],['Среднее выполнение',percent+'%']
-    ];
-    metrics.forEach(([label,value])=>{
-      const box=document.createElement('div');box.className='dashboard-stat';
-      const strong=document.createElement('strong');strong.textContent=value;
-      const span=document.createElement('span');span.textContent=label;
-      box.append(strong,span);stats.append(box);
-    });
-    root.innerHTML='';
-    if(!rows.length){root.textContent='На сегодня пока нет рабочих дней.';return;}
-    rows.forEach(item=>{
-      const line=document.createElement('div');line.className='admin-record';
-      const name=document.createElement('strong');name.textContent=item.copier?.full_name||'Сотрудник';
-      const meta=document.createElement('div');meta.className='small';
-      const arrival=item.checked_in_at?new Date(item.checked_in_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})+(item.arrival_status==='on_time'?' · вовремя':' · опоздание'):'Приход не отмечен';
-      const p=getProgressStats(item.section_progress||[]);
-      meta.textContent=(item.stores?.name||'Магазин')+' · '+arrival+' · Чек-лист: '+p.percent+'% ('+p.done+'/'+p.total+')'+(item.confirmed_at?' · день подтверждён':'');
-      line.append(name,meta);root.append(line);
-    });
-  }catch(err){root.textContent='Не удалось загрузить обзор: '+(err.message||err);}
-}
+let adminDashboardRows=[];let adminDashboardFilter="all";let adminSelectedWorkday=null;
+async function showAdminHome(){if(profile?.role!=="admin")return;hidePages();setAdminNav("homeNav");$("adminHomePage").classList.remove("hidden");if(!$("dashboardDateInput").value)$("dashboardDateInput").value=todayKey();await loadAdminDashboard();}
+async function loadAdminDashboard(){if(profile?.role!=="admin")return;const root=$("dashboardResults");root.textContent="Загрузка…";try{const date=$("dashboardDateInput").value||todayKey();const r=await sb.from("workdays").select("id,employee_id,work_date,store_id,checked_in_at,arrival_status,confirmed_at,employees(full_name),stores(name),section_progress(section_key,answers,comments,completed_at)").eq("work_date",date).order("created_at",{ascending:true}).limit(500);if(r.error)throw r.error;adminDashboardRows=r.data||[];renderAdminDashboardList();}catch(e){root.textContent="Не удалось загрузить список: "+(e.message||e);}}
+function adminWorkdayState(item){if(item.confirmed_at)return "done";const p=getProgressStats(item.section_progress||[]);return item.checked_in_at||p.done||p.failed||(item.section_progress||[]).some(x=>x.completed_at)?"progress":"new";}
+function setAdminFilter(filter){adminDashboardFilter=filter;document.querySelectorAll("#dashboardFilters button").forEach(b=>b.classList.toggle("active",b.dataset.filter===filter));renderAdminDashboardList();}
+function renderAdminDashboardList(){const root=$("dashboardResults");if(!root)return;root.innerHTML="";const query=($("dashboardSearch")?.value||"").trim().toLocaleLowerCase("ru");const rows=adminDashboardRows.filter(x=>(adminDashboardFilter==="all"||adminWorkdayState(x)===adminDashboardFilter)&&((x.employees?.full_name||"")+" "+(x.stores?.name||"")).toLocaleLowerCase("ru").includes(query)).sort((a,b)=>(a.employees?.full_name||"").localeCompare(b.employees?.full_name||"","ru"));
+  if(!adminDashboardRows.length){root.innerHTML="<div class=\"admin-empty\"><strong>Нет рабочих дней</strong><span>На выбранную дату пока нет созданных рабочих дней. Можно выбрать другую дату.</span></div>";return;}if(!rows.length){root.innerHTML="<div class=\"admin-empty\">По выбранному фильтру ничего не найдено.</div>";return;}
+  const groups=[{id:"progress",title:"В работе"},{id:"done",title:"Завершённые"},{id:"new",title:"Не начатые"}];groups.forEach(g=>{const list=rows.filter(x=>adminWorkdayState(x)===g.id);if(!list.length)return;const h=document.createElement("h3");h.className="admin-group-title";h.textContent=g.title+" · "+list.length;root.append(h);list.forEach(item=>{const p=getProgressStats(item.section_progress||[]),row=document.createElement("button");row.type="button";row.className="admin-employee-row";const top=document.createElement("span");top.className="admin-employee-top";const name=document.createElement("strong");name.textContent=item.employees?.full_name||"Сотрудник";const badge=document.createElement("span");badge.className="admin-state-badge "+g.id;badge.textContent=g.title;top.append(name,badge);const meta=document.createElement("span");meta.className="small";const arrival=item.checked_in_at?new Date(item.checked_in_at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})+(item.arrival_status==="on_time"?" · вовремя":" · опоздание"):"Приход не отмечен";meta.textContent=(item.stores?.name||"Магазин")+" · "+arrival;const prog=document.createElement("span");prog.className="admin-row-progress";prog.innerHTML="<span class=\"progress\"><span style=\"width:"+p.percent+"%\"></span></span><small>"+p.percent+"% · "+p.done+"/"+p.total+"</small>";row.append(top,meta,prog);row.onclick=()=>openAdminWorkday(item);root.append(row);});});}
+function openAdminWorkday(item){adminSelectedWorkday=item;hidePages();$("adminWorkdayPage").classList.remove("hidden");const state=adminWorkdayState(item),p=getProgressStats(item.section_progress||[]);$("adminWorkdayName").textContent=item.employees?.full_name||"Сотрудник";const arrival=item.checked_in_at?new Date(item.checked_in_at).toLocaleTimeString("ru-RU",{hour:"2-digit",minute:"2-digit"})+(item.arrival_status==="on_time"?" · вовремя":" · опоздание"):"Приход не отмечен";$("adminWorkdayMeta").textContent=(item.stores?.name||"Магазин")+" · "+dateLabel(item.work_date)+" · "+arrival;const badge=$("adminWorkdayStatus");badge.className="pill admin-state-badge "+state;badge.textContent=state==="done"?"Завершён":state==="progress"?"В работе":"Не начат";$("adminWorkdayPercent").textContent=p.percent+"% · "+p.done+"/"+p.total;$("adminWorkdayBar").style.width=p.percent+"%";$("adminCountDone").textContent=p.done;$("adminCountFailed").textContent=p.failed;$("adminCountPending").textContent=Math.max(0,p.total-p.done-p.failed);
+  const root=$("adminWorkdaySections");root.innerHTML="";sections.forEach(section=>{const st=(item.section_progress||[]).find(x=>x.section_key===section.key),answers=Array.isArray(st?.answers)?st.answers:[],comments=st?.comments&&typeof st.comments==="object"?st.comments:{},done=answers.filter(Boolean).length,failed=Object.values(comments).filter(v=>String(v||"").trim()).length,pending=section.tasks.length-done-failed;const card=document.createElement("div");card.className="admin-accordion";const toggle=document.createElement("button");toggle.type="button";toggle.className="admin-accordion-toggle";toggle.setAttribute("aria-expanded","false");const title=document.createElement("span");title.innerHTML="<strong>"+section.name+"</strong><small>"+done+"/"+section.tasks.length+" выполнено · "+failed+" не выполнено · "+pending+" не обработано</small>";const status=document.createElement("span");status.className="admin-accordion-status";status.textContent=st?.completed_at?(failed?"Есть замечания":"Завершён"):done+failed?"В работе":"Не начат";const arrow=document.createElement("span");arrow.textContent="⌄";toggle.append(title,status,arrow);const body=document.createElement("div");body.className="admin-accordion-body hidden";
+    section.tasks.forEach((task,i)=>{const comment=String(comments[i]||"").trim(),line=document.createElement("div");line.className="admin-task-row";const state=document.createElement("strong");state.className="admin-task-state "+(answers[i]?"done":comment?"failed":"pending");state.textContent=answers[i]?"✓ Выполнено":comment?"! Не выполнено":"○ Не обработано";const text=document.createElement("div");text.className="admin-task-text";text.textContent=task;line.append(state,text);if(comment){const note=document.createElement("div");note.className="admin-task-comment";note.textContent=comment;line.append(note);}body.append(line);});
+    toggle.onclick=()=>{const open=body.classList.contains("hidden");root.querySelectorAll(".admin-accordion-body").forEach(x=>x.classList.add("hidden"));root.querySelectorAll(".admin-accordion-toggle").forEach(x=>x.setAttribute("aria-expanded","false"));root.querySelectorAll(".admin-accordion-toggle span:last-child").forEach(x=>x.textContent="⌄");if(open){body.classList.remove("hidden");toggle.setAttribute("aria-expanded","true");arrow.textContent="⌃";}};card.append(toggle,body);root.append(card);});}
+function backToAdminList(){hidePages();$("adminHomePage").classList.remove("hidden");setAdminNav("homeNav");renderAdminDashboardList();}
 async function loadAdminHistory(){
   if(profile?.role!=='admin')return;
   const root=$('adminHistoryResults');root.textContent='Загрузка истории…';
