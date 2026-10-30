@@ -66,6 +66,11 @@ th{background:var(--table-head)}
 .actions button{flex:1}
 .arrival-cell{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
 .delete-cell button{font-size:13px;padding:9px 11px;white-space:nowrap}
+.dashboard-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(135px,1fr));gap:10px;margin-top:14px}
+.dashboard-stat{background:var(--surface-soft);border:1px solid var(--border);border-radius:12px;padding:14px}
+.dashboard-stat strong{display:block;font-size:25px;margin-bottom:4px}
+.dashboard-stat span{font-size:13px;color:var(--muted)}
+.admin-record{padding:12px 0;border-bottom:1px solid var(--border)}
 @media(max-width:560px){header{padding:18px 18px 70px}header h1{font-size:21px}.theme-toggle{left:18px;right:auto;top:auto;bottom:14px}.settings-toggle{right:18px;top:auto;bottom:14px}.settings-menu{right:12px;top:60px}main{padding:10px}.card{padding:14px}.nav button{font-size:13px;padding:11px 8px}}
 </style>
 </head>
@@ -108,10 +113,34 @@ th{background:var(--table-head)}
   </section>
   <section id="app" class="hidden">
     <div class="nav">
-      <button class="secondary" onclick="goHome()">Главная</button>
-      <button class="secondary" onclick="showHistory()">История</button>
+      <button id="homeNav" class="secondary" onclick="goHome()">Главная</button>
+      <button id="historyNav" class="secondary" onclick="showHistory()">История</button>
       <button id="adminNav" class="secondary hidden" onclick="showAdmin()">Панель руководителя</button>
     </div>
+    <section id="adminHomePage" class="hidden">
+      <div class="card">
+        <div class="row"><h2>Обзор за сегодня</h2><button class="secondary" type="button" onclick="loadAdminDashboard()">Обновить</button></div>
+        <p id="dashboardDate" class="muted"></p>
+        <div id="dashboardStats" class="dashboard-stats"></div>
+      </div>
+      <div class="card">
+        <h2>Рабочие дни сотрудников</h2>
+        <div id="dashboardResults"></div>
+      </div>
+    </section>
+    <section id="adminHistoryPage" class="card hidden">
+      <h2>История рабочих дней</h2>
+      <div class="row">
+        <div style="flex:1;min-width:140px"><label for="historyFrom">С даты</label><input type="date" id="historyFrom"></div>
+        <div style="flex:1;min-width:140px"><label for="historyTo">По дату</label><input type="date" id="historyTo"></div>
+      </div>
+      <div class="row">
+        <div style="flex:1;min-width:150px"><label for="historyEmployee">Сотрудник</label><select id="historyEmployee"><option value="">Все сотрудники</option></select></div>
+        <div style="flex:1;min-width:150px"><label for="historyStore">Магазин</label><select id="historyStore"><option value="">Все магазины</option></select></div>
+      </div>
+      <div class="row"><span class="muted">Показаны рабочие дни с сохранёнными результатами.</span><button class="secondary" type="button" onclick="loadAdminHistory()">Применить</button></div>
+      <div id="adminHistoryResults"></div>
+    </section>
     <div id="setup" class="card hidden">
       <h2>Рабочий день</h2>
       <p class="muted">Выбери магазин, в котором работаешь сегодня. Если вышел на подмену, можно выбрать другой магазин.</p>
@@ -299,7 +328,14 @@ try{savedTheme=localStorage.getItem('dailyChecklistTheme')||'light';}catch(e){}
 applyTheme(savedTheme);
 
 function hidePages(){
-  ['setup','home','work','historyPage','adminPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
+  ['setup','home','work','historyPage','adminPage','adminHomePage','adminHistoryPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
+}
+function setAdminNav(active){
+  ['homeNav','historyNav','adminNav'].forEach(id=>{
+    const el=$(id);
+    if(el)el.classList.toggle('primary',id===active);
+    if(el)el.classList.toggle('secondary',id!==active);
+  });
 }
 function toggleSettingsMenu(event){
   if(event)event.stopPropagation();
@@ -409,10 +445,9 @@ async function boot(){
   showApp();
 
   if(profile.role==='admin'){
-    hidePages();
-    $('adminPage').classList.remove('hidden');
     $('adminDate').value=todayKey();
-    await loadAdmin();
+    $('dashboardDate').textContent=dateLabel(todayKey());
+    await showAdminHome();
   }else{
     await restoreToday();
   }
@@ -430,12 +465,25 @@ function fillStoreSelects(){
 
   const a=$('adminStore');
   a.innerHTML='<option value="">Все магазины</option>';
+  const hs=$('historyStore');
+  if(hs)hs.innerHTML='<option value="">Все магазины</option>';
   stores.forEach(s=>{
     const o=document.createElement('option');
     o.value=s.id;
     o.textContent=`${s.name}${s.city?' · '+s.city:''}`;
     a.append(o);
+    if(hs)hs.append(o.cloneNode(true));
   });
+  const he=$('historyEmployee');
+  if(he){
+    he.innerHTML='<option value="">Все сотрудники</option>';
+    sb.from('employees').select('id,full_name').eq('active',true).order('full_name').then(({data,error})=>{
+      if(error){console.error(error);return;}
+      (data||[]).forEach(emp=>{
+        const o=document.createElement('option');o.value=emp.id;o.textContent=emp.full_name;he.append(o);
+      });
+    });
+  }
 
   if(employee?.primary_store_id)select.value=employee.primary_store_id;
   $('employeeGreeting').textContent=employee?'Сотрудник: '+employee.full_name:'';
@@ -492,7 +540,7 @@ async function restoreToday(){
 
 function goHome(){
   hidePages();
-  if(profile?.role==='admin'){showAdmin();return;}
+  if(profile?.role==='admin'){showAdminHome();return;}
   if(!day){$('setup').classList.remove('hidden');return;}
   $('home').classList.remove('hidden');
   renderHome();
@@ -812,7 +860,7 @@ function buildChecklistDetails(sectionRows){
 }
 
 async function showHistory(){
-  if(profile?.role==='admin'){await showAdmin();return;}
+  if(profile?.role==='admin'){await showAdminHistory();return;}
   hidePages();
   $('historyPage').classList.remove('hidden');
   $('historyList').textContent='Загрузка истории…';
@@ -888,11 +936,90 @@ async function showHistory(){
   }
 }
 
+async function showAdminHome(){
+  if(profile?.role!=='admin')return;
+  hidePages();setAdminNav('homeNav');
+  $('adminHomePage').classList.remove('hidden');
+  $('dashboardDate').textContent=dateLabel(todayKey());
+  await loadAdminDashboard();
+}
+async function showAdminHistory(){
+  if(profile?.role!=='admin')return;
+  hidePages();setAdminNav('historyNav');
+  $('adminHistoryPage').classList.remove('hidden');
+  await loadAdminHistory();
+}
 function showAdmin(){
   if(profile?.role!=='admin')return;
-  hidePages();
+  hidePages();setAdminNav('adminNav');
   $('adminPage').classList.remove('hidden');
   loadAdmin();
+}
+async function loadAdminDashboard(){
+  if(profile?.role!=='admin')return;
+  const root=$('dashboardResults'),stats=$('dashboardStats');
+  root.textContent='Загрузка…';stats.innerHTML='';
+  try{
+    const {data,error}=await sb.from('workdays')
+      .select('id,employee_id,work_date,store_id,checked_in_at,arrival_status,confirmed_at,employees(full_name),stores(name),section_progress(section_key,answers,comments,completed_at)')
+      .eq('work_date',todayKey()).order('created_at',{ascending:false}).limit(500);
+    if(error)throw error;
+    const rows=data||[];
+    const completed=rows.filter(x=>sections.every(s=>(x.section_progress||[]).some(p=>p.section_key===s.key&&!!p.completed_at))).length;
+    const arrived=rows.filter(x=>!!x.checked_in_at).length;
+    const late=rows.filter(x=>x.arrival_status==='late').length;
+    const percent=rows.length?Math.round(rows.reduce((n,x)=>n+getProgressStats(x.section_progress||[]).percent,0)/rows.length):0;
+    const metrics=[
+      ['Сотрудников',rows.length],['Отметили приход',arrived],['Опоздания',late],['Все пункты обработаны',completed],['Среднее выполнение',percent+'%']
+    ];
+    metrics.forEach(([label,value])=>{
+      const box=document.createElement('div');box.className='dashboard-stat';
+      const strong=document.createElement('strong');strong.textContent=value;
+      const span=document.createElement('span');span.textContent=label;
+      box.append(strong,span);stats.append(box);
+    });
+    root.innerHTML='';
+    if(!rows.length){root.textContent='На сегодня пока нет рабочих дней.';return;}
+    rows.forEach(item=>{
+      const line=document.createElement('div');line.className='admin-record';
+      const name=document.createElement('strong');name.textContent=item.employees?.full_name||'Сотрудник';
+      const meta=document.createElement('div');meta.className='small';
+      const arrival=item.checked_in_at?new Date(item.checked_in_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})+(item.arrival_status==='on_time'?' · вовремя':' · опоздание'):'Приход не отмечен';
+      const p=getProgressStats(item.section_progress||[]);
+      meta.textContent=(item.stores?.name||'Магазин')+' · '+arrival+' · Чек-лист: '+p.percent+'% ('+p.done+'/'+p.total+')'+(item.confirmed_at?' · день подтверждён':'');
+      line.append(name,meta);root.append(line);
+    });
+  }catch(err){root.textContent='Не удалось загрузить обзор: '+(err.message||err);}
+}
+async function loadAdminHistory(){
+  if(profile?.role!=='admin')return;
+  const root=$('adminHistoryResults');root.textContent='Загрузка истории…';
+  try{
+    let q=sb.from('workdays')
+      .select('id,employee_id,work_date,store_id,checked_in_at,arrival_status,arrival_manually_edited,confirmed_at,employees(full_name),stores(name),section_progress(section_key,answers,comments,completed_at)')
+      .order('work_date',{ascending:false}).limit(500);
+    const from=$('historyFrom').value,to=$('historyTo').value,emp=$('historyEmployee').value,store=$('historyStore').value;
+    if(from)q=q.gte('work_date',from);
+    if(to)q=q.lte('work_date',to);
+    if(emp)q=q.eq('employee_id',emp);
+    if(store)q=q.eq('store_id',store);
+    const {data,error}=await q;if(error)throw error;
+    const rows=data||[];root.innerHTML='';
+    if(!rows.length){root.textContent='По выбранным фильтрам записей нет.';return;}
+    const count=document.createElement('p');count.className='muted';count.textContent='Найдено рабочих дней: '+rows.length;root.append(count);
+    rows.forEach(item=>{
+      const card=document.createElement('div');card.className='admin-record';
+      const title=document.createElement('strong');title.textContent=dateLabel(item.work_date)+' · '+(item.employees?.full_name||'Сотрудник');
+      const meta=document.createElement('div');meta.className='small';
+      const arrival=item.checked_in_at?new Date(item.checked_in_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})+(item.arrival_status==='on_time'?' · вовремя':' · опоздание'):'Приход не отмечен';
+      const p=getProgressStats(item.section_progress||[]);
+      meta.textContent=(item.stores?.name||'Магазин')+' · '+arrival+' · Выполнение: '+p.percent+'% ('+p.done+'/'+p.total+') · Не выполнено: '+p.failed+(item.confirmed_at?' · рабочий день подтверждён':'');
+      const button=document.createElement('button');button.className='secondary';button.style.marginTop='8px';button.textContent='Показать пункты и комментарии';
+      const details=buildChecklistDetails(item.section_progress||[]);details.classList.add('hidden');
+      button.onclick=()=>{details.classList.toggle('hidden');button.textContent=details.classList.contains('hidden')?'Показать пункты и комментарии':'Скрыть пункты и комментарии';};
+      card.append(title,meta,button,details);root.append(card);
+    });
+  }catch(err){root.textContent='Не удалось загрузить историю: '+(err.message||err);}
 }
 
 async function loadAdmin(){
@@ -1063,6 +1190,7 @@ async function deleteCompletedChecklist(item){
 
 $('adminDate').addEventListener('change',loadAdmin);
 $('adminStore').addEventListener('change',loadAdmin);
+['historyFrom','historyTo','historyEmployee','historyStore'].forEach(id=>$(id).addEventListener('change',loadAdminHistory));
 
 $('passwordForm').addEventListener('submit',async e=>{
   e.preventDefault();
