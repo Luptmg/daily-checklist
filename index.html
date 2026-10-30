@@ -1469,7 +1469,25 @@ async function createSmsCustomerOrder(){
     ['smsNewName','smsNewPhone','smsNewOrder','smsNewComment'].forEach(id=>$(id).value='');
     await openSmsCustomer(c.data.id,o.data.id);
     msg('Клиент и заказ созданы. Теперь выбери первый шаблон.','notice success');
-  }catch(e){msg('Не удалось создать карточку: '+e.message,'notice error');}
+  }catch(e){
+    let detail='';
+    if(String(e.message||'').toLowerCase().includes('row-level security')){
+      try{
+        const d=await sb.rpc('sms_customer_access_diagnostic',{p_employee_id:employee?.id||null,p_store_id:day?.store_id||null});
+        if(!d.error&&d.data){
+          const x=d.data;
+          detail=' Диагностика: роль='+String(x.role)+
+            '; ID сотрудника совпадает='+String(x.app_employee_id_matches_profile)+
+            '; рабочий день на этот магазин сегодня='+String(x.workday_exists_for_employee_and_store_today)+
+            '; проверка вставки должна пройти='+String(x.expected_insert_policy_result)+
+            '; дата магазина='+String(x.store_local_date)+'.';
+        }else{
+          detail=' Диагностику базы получить не удалось: '+(d.error?.message||'нет данных');
+        }
+      }catch(diagError){detail=' Диагностика завершилась ошибкой: '+diagError.message;}
+    }
+    msg('Не удалось создать карточку: '+e.message+detail,'notice error');
+  }
 }
 async function openSmsCustomer(id,orderId=null){
   const r=await sb.from('sms_customers').select('id,full_name,phone,comment,primary_store_id,last_activity_at,creator:employees!sms_customers_created_by_employee_id_fkey(full_name)').eq('id',id).single();
