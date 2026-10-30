@@ -1480,6 +1480,7 @@ async function createSmsCustomerOrder(){
             '; ID сотрудника совпадает='+String(x.app_employee_id_matches_profile)+
             '; рабочий день на этот магазин сегодня='+String(x.workday_exists_for_employee_and_store_today)+
             '; проверка вставки должна пройти='+String(x.expected_insert_policy_result)+
+            '; фактический результат RLS-функции='+String(x.actual_insert_policy_helper_result)+
             '; дата магазина='+String(x.store_local_date)+'.';
         }else{
           detail=' Диагностику базы получить не удалось: '+(d.error?.message||'нет данных');
