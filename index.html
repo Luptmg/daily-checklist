@@ -1551,17 +1551,19 @@ async function copySmsMessage(){
   const customerActivityBefore=smsCustomer.last_activity_at;
   try{await navigator.clipboard.writeText(text);}catch(e){
     if(!main&&line)await sb.from('sms_lines').delete().eq('id',line.id);
+    if(customerActivityBefore)await sb.from('sms_customers').update({last_activity_at:customerActivityBefore}).eq('id',smsCustomer.id);
     msg('Браузер не разрешил копирование. Проверь разрешение буфера обмена.','notice error');return;
   }
   const insMsg=await sb.from('sms_messages').insert({line_id:line.id,order_id:smsOrder.id,template_key:key,rendered_text:text,copied_by_employee_id:employee.id,is_additional:isAdditional,stage_before:stageBefore,stage_after:stageAfter,line_last_action_before:main?.last_action_at||null,customer_last_activity_before:customerActivityBefore,line_status_before:main?.status||null,line_completed_at_before:main?.completed_at||null}).select('id').single();
   if(insMsg.error){
     if(!main)await sb.from('sms_lines').delete().eq('id',line.id);
+    if(customerActivityBefore)await sb.from('sms_customers').update({last_activity_at:customerActivityBefore}).eq('id',smsCustomer.id);
     msg('Текст скопирован, но не удалось сохранить историю: '+insMsg.error.message,'notice error');return;
   }
   const lineUpdate={last_action_at:new Date().toISOString()};
   if(stageAfter){lineUpdate.current_stage=stageAfter;lineUpdate.status=complete?'completed':'active';lineUpdate.completed_at=complete?new Date().toISOString():null;lineUpdate.completed_by_employee_id=complete?employee.id:null;}
   const lineSaved=await sb.from('sms_lines').update(lineUpdate).eq('id',line.id);
-  if(lineSaved.error){msg('SMS скопировано и сохранено, но не удалось обновить этап линии: '+lineSaved.error.message,'notice error');return;}
+  if(lineSaved.error){await sb.from('sms_messages').delete().eq('id',insMsg.data.id);if(!main)await sb.from('sms_lines').delete().eq('id',line.id);if(customerActivityBefore)await sb.from('sms_customers').update({last_activity_at:customerActivityBefore}).eq('id',smsCustomer.id);msg('SMS скопировано, но запись не удалось завершить. Повтори действие. '+lineSaved.error.message,'notice error');return;}
   smsCustomer.last_activity_at=new Date().toISOString();
   await loadSmsLines();renderSmsOrder();msg('SMS скопировано и сохранено в истории.','notice success');
 }
