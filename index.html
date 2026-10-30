@@ -88,12 +88,12 @@ textarea{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid va
 .sms-history-line{padding:10px 0;border-bottom:1px solid var(--border)}
 .sms-history-line:last-child{border-bottom:0}
 .sms-copy-button{margin-top:8px}
-.sms-customer-modal{position:fixed;inset:0;z-index:1000;background:#0009;display:flex;align-items:center;justify-content:center;padding:14px;overflow-y:auto}
+.sms-order-modal{position:fixed;inset:0;z-index:1010;background:#000b;display:flex;align-items:center;justify-content:center;padding:14px;overflow-y:auto}.sms-order-dialog{position:relative;width:min(760px,100%);max-height:calc(100dvh - 28px);overflow-y:auto;background:var(--page);border:1px solid var(--border);border-radius:18px;padding:16px;box-shadow:0 18px 60px #0008}.sms-order-dialog .sms-order-card{margin:0}.sms-customer-modal{position:fixed;inset:0;z-index:1000;background:#0009;display:flex;align-items:center;justify-content:center;padding:14px;overflow-y:auto}
 .sms-customer-dialog{position:relative;width:min(760px,100%);max-height:calc(100dvh - 28px);overflow-y:auto;background:var(--page);border:1px solid var(--border);border-radius:18px;padding:16px;box-shadow:0 18px 60px #0006}
 .sms-modal-close{position:sticky;top:0;z-index:5;display:flex;justify-content:flex-end;margin:-4px -4px 8px}
 .sms-modal-close button{width:42px;height:42px;padding:0;font-size:24px;border-radius:50%;background:var(--surface-soft);color:var(--text);border:1px solid var(--border)}
 body.sms-modal-open{overflow:hidden}
-@media(max-width:560px){.sms-customer-modal{padding:0;align-items:flex-end}.sms-customer-dialog{width:100%;max-height:94dvh;border-radius:18px 18px 0 0;padding:14px}}
+@media(max-width:560px){.sms-order-modal{padding:0;align-items:flex-end}.sms-order-dialog{width:100%;max-height:96dvh;border-radius:18px 18px 0 0;padding:12px}.sms-customer-modal{padding:0;align-items:flex-end}.sms-customer-dialog{width:100%;max-height:94dvh;border-radius:18px 18px 0 0;padding:14px}}
 .sms-config-fields{padding:8px 0}
 .sms-board-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}
 .sms-board-tab{background:var(--surface-soft);color:var(--text);border:1px solid var(--border);padding:11px 7px;font-size:13px;line-height:1.25}
@@ -1554,10 +1554,19 @@ async function openSmsCustomer(id,orderId=null){
     (o.data||[]).forEach(item=>{
       const b=document.createElement('button');b.className='section-button';b.innerHTML='<span><strong>Заказ №'+smsEsc(item.order_number)+'</strong><small>Создан '+new Date(item.created_at).toLocaleDateString('ru-RU')+'</small></span><span>Выбрать</span>';b.onclick=()=>selectSmsOrder(item.id);list.append(b);
     });
-    if(orderId){step='открытие заказа';await selectSmsOrder(orderId);}
+    let targetOrderId=orderId||null;
+    if(!targetOrderId&&(o.data||[]).length){
+      const orderIds=o.data.map(x=>x.id);
+      const active=await sb.from('sms_lines').select('order_id,last_action_at').in('order_id',orderIds).eq('status','active').order('last_action_at',{ascending:false}).limit(1);
+      if(active.error)throw active.error;
+      targetOrderId=active.data?.[0]?.order_id||o.data[0].id;
+    }
+    if(targetOrderId){step='открытие действующей линии';await selectSmsOrder(targetOrderId);}
   }catch(e){msg('Не удалось открыть карточку (этап: '+step+'): '+e.message,'notice error');}
 }
+function closeSmsOrderView(){const modal=$('smsOrderModal');if(modal)modal.remove();smsOrder=null;smsLines=[];}
 function closeSmsCustomer(){
+  closeSmsOrderView();
   const root=$('smsCustomerDetails');if(root){root.classList.add('hidden');root.innerHTML='';}
   document.body.classList.remove('sms-modal-open');smsCustomer=null;smsOrder=null;smsLines=[];
 }
@@ -1606,7 +1615,8 @@ function renderSmsOrder(){
   const currentLine=smsLines.find(l=>l.line_kind==='main'&&l.status==='active');
   const currentStage=currentLine?(smsTemplates[currentLine.current_stage]?.name||currentLine.current_stage):'Нет активной линии';
   const html='<div class="card sms-order-card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><div class="sms-order-meta"><span>Создан '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</span><span>·</span><span>'+(currentLine?'Текущий этап: '+smsEsc(currentStage):'Можно начать новую линию')+'</span></div><div class="sms-step-card"><label for="smsTemplate">СЛЕДУЮЩЕЕ СООБЩЕНИЕ</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+(recommendedOptions||'<option value="configuration">Конфигурация</option>')+'</select><details class="sms-details" id="smsOtherTemplates"><summary>Другие шаблоны</summary><div class="sms-details-body"><label for="smsOtherTemplate">Выбрать шаблон</label><select id="smsOtherTemplate" onchange="selectSmsOtherTemplate()">'+allOptions+'</select></div></details><div id="smsConfigFields" class="sms-config-fields hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><details class="sms-details" id="smsPreviewDetails"><summary>Посмотреть текст сообщения</summary><div class="sms-details-body"><div id="smsPreview" class="sms-message"></div></div></details><button class="primary sms-copy-button" type="button" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
-  root.insertAdjacentHTML('beforeend','<div id="smsOrderWork">'+html+'</div>');
+  const previous=$('smsOrderModal');if(previous)previous.remove();
+  document.body.insertAdjacentHTML('beforeend','<div id="smsOrderModal" class="sms-order-modal" role="presentation" onclick="if(event.target===this)closeSmsOrderView()"><div class="sms-order-dialog" role="dialog" aria-modal="true" aria-label="Работа с заказом"><div class="sms-modal-close"><button type="button" onclick="closeSmsOrderView()" aria-label="Закрыть заказ">×</button></div><div id="smsOrderWork">'+html+'</div></div></div>');
   if(recommended.length)$('smsTemplate').value=defaultKey;
   renderSmsLines();updateSmsTemplateFields();
 }
