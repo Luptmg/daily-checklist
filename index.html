@@ -552,8 +552,9 @@ async function boot(){
     showApp();
 
     if(profile.role==='admin'){
-      $('adminDate').value=todayKey();
-      $('dashboardDate').textContent=dateLabel(todayKey());
+      const adminDate=$('adminDate');if(adminDate)adminDate.value=todayKey();
+      const dashboardDate=$('dashboardDate');if(dashboardDate)dashboardDate.textContent=dateLabel(todayKey());
+      const dashboardDateInput=$('dashboardDateInput');if(dashboardDateInput)dashboardDateInput.value=todayKey();
       await showAdminHome();
     }else{
       await restoreToday();
