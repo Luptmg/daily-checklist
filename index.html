@@ -1273,7 +1273,7 @@ $('passwordForm').addEventListener('submit',async e=>{
 
 
 const smsTemplates = {
-  configuration:{name:'Конфигурация',standalone:true,text:(d)=>`ИМЯ, добрый день! 😊
+  configuration:{name:'Конфигурация',standalone:true,text:(d)=>`${d.name}, добрый день! 😊
 
 Это ${d.employee}, ваш персональный менеджер MЕТТА.
 
@@ -1407,7 +1407,7 @@ async function showSms(){
   $('smsAdminStats').classList.toggle('hidden',profile?.role!=='admin');
   if(profile?.role==='admin'&&!$('smsAdminStore')){
     const s=document.createElement('select');s.id='smsAdminStore';s.innerHTML='<option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('');
-    $('smsAdminStats').append(s);
+    $('smsAdminStats').append(s);s.onchange=()=>{loadSmsAdminStats();loadSmsLineBoards();};
   }
   await loadSmsHome();
 }
@@ -1443,13 +1443,16 @@ async function createSmsCustomerOrder(){
   if(!name||!phone||!order){msg('Заполни имя, телефон и номер заказа.','notice error');return;}
   if(digits.length<7){msg('Проверь номер телефона.','notice error');return;}
   try{
+    const duplicateOrder=await sb.from('sms_orders').select('id').eq('order_number',order).maybeSingle();
+    if(duplicateOrder.error)throw duplicateOrder.error;
+    if(duplicateOrder.data){msg('Номер заказа уже существует. Найди его через поиск и открой существующую карточку.','notice error');return;}
     const found=await sb.from('sms_customers').select('id,full_name,phone').eq('phone_normalized',digits).maybeSingle();
     if(found.error)throw found.error;
     if(found.data){msg('Клиент с таким телефоном уже существует. Открой его через поиск и добавь заказ.','notice error');await openSmsCustomer(found.data.id);return;}
     const c=await sb.from('sms_customers').insert({full_name:name,phone,phone_normalized:digits,comment:$('smsNewComment').value.trim()||null,primary_store_id:day.store_id,created_by_employee_id:employee.id}).select('id').single();
     if(c.error)throw c.error;
     const o=await sb.from('sms_orders').insert({customer_id:c.data.id,order_number:order}).select('id').single();
-    if(o.error)throw o.error;
+    if(o.error){await sb.from('sms_customers').delete().eq('id',c.data.id);throw o.error;}
     ['smsNewName','smsNewPhone','smsNewOrder','smsNewComment'].forEach(id=>$(id).value='');
     await openSmsCustomer(c.data.id,o.data.id);
     msg('Клиент и заказ созданы. Теперь выбери первый шаблон.','notice success');
@@ -1484,8 +1487,8 @@ async function selectSmsOrder(id){
   renderSmsOrder();
 }
 function renderSmsOrder(){
-  const root=$('smsCustomerDetails');const old=$('smsOrderWork');if(old)old.remove();let html='<div class="card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><p class="muted">Дата создания: '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</p><div class="sms-grid"><div><label>Шаблон</label><select id="smsTemplate" onchange="previewSms()">'+Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('')+'</select></div><div><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..."></div><div><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..."></div></div><div id="smsPreview" class="sms-message"></div><button class="primary" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
-  root.insertAdjacentHTML('beforeend','<div id="smsOrderWork">'+html+'</div>');renderSmsLines();previewSms();
+  const root=$('smsCustomerDetails');const old=$('smsOrderWork');if(old)old.remove();let html='<div class="card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><p class="muted">Дата создания: '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</p><div class="sms-grid"><div><label>Шаблон</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('')+'</select></div><div id="smsConfigFields" class="hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><div id="smsPreview" class="sms-message"></div><button class="primary" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
+  root.insertAdjacentHTML('beforeend','<div id="smsOrderWork">'+html+'</div>');renderSmsLines();updateSmsTemplateFields();
 }
 function renderSmsLines(){
   const root=$('smsLineList');if(!root)return;root.innerHTML='<h3>Линии и история</h3>';
@@ -1501,6 +1504,7 @@ function renderSmsLines(){
     root.append(d);
   });
 }
+function updateSmsTemplateFields(){const key=$('smsTemplate')?.value;$('smsConfigFields')?.classList.toggle('hidden',key!=='configuration');previewSms();}
 function previewSms(){
   if(!smsOrder||!smsCustomer)return;
   const key=$('smsTemplate').value,t=smsTemplates[key],store=stores.find(s=>s.id===(profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id))||stores.find(s=>s.id===smsCustomer.primary_store_id);
@@ -1517,6 +1521,7 @@ async function copySmsMessage(){
   let line=null,isAdditional=false,stageBefore=null,stageAfter=null,complete=false;
   if(!main){
     const hasConfig=existing.some(x=>x.line_kind==='standalone'&&x.initial_stage==='configuration');
+    if(existing.some(x=>x.line_kind==='standalone'&&['review','thanks'].includes(x.initial_stage))){msg('Этот заказ уже завершён самостоятельным сообщением «Отзыв» или «Благодарность». Новую основную линию запустить нельзя.','notice error');return;}
     if(hasConfig&&key==='cdek'){msg('После конфигурации основную линию можно начать с «На складе самовывоз», «Доставка со склада» или «Принято».','notice error');return;}
     if(key==='warehouse_delivery'){msg('Шаблон «На складе доставка» доступен только после «Принято».','notice error');return;}
     if(['configuration','review','thanks'].includes(key)){
@@ -1581,7 +1586,7 @@ async function loadSmsLineBoards(){
   const root=$('smsLineBoards');root.innerHTML='Загружаю линии…';
   try{
     let q=sb.from('sms_lines').select('id,order_id,line_kind,status,initial_stage,current_stage,last_action_at,store_id,created_by_employee_id,stores(name),employees(full_name),sms_orders(order_number,customer_id,sms_customers(full_name,phone))').order('last_action_at',{ascending:false}).limit(500);
-    if(profile?.role==='employee')q=q.eq('store_id',day.store_id);
+    if(profile?.role==='employee')q=q.eq('store_id',day.store_id);else if($('smsAdminStore')?.value)q=q.eq('store_id',$('smsAdminStore').value);
     const r=await q;if(r.error)throw r.error;const rows=r.data||[];
     const mine=profile?.role==='employee'?rows.filter(x=>x.created_by_employee_id===employee.id&&x.status==='active'):rows.filter(x=>x.status==='active');
     const active=rows.filter(x=>x.status==='active'),done=rows.filter(x=>x.status==='completed');
