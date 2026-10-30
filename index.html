@@ -206,10 +206,6 @@ body.sms-modal-open{overflow:hidden}
     </div>
     <section id="home" class="hidden">
       <div class="card"><h2>Твой рабочий день</h2><div id="identity" class="muted"></div><div id="checkinArea"></div><div id="overallProgress"></div><button id="homeContinueButton" class="home-continue" type="button"><strong>Продолжить работу</strong></button><div id="homeContinueHint" class="small"></div><h3 style="margin:20px 0 4px">Разделы</h3><div id="sections"></div></div>
-      <div id="finished" class="card hidden">
-        <h2>Рабочий день подтверждён</h2>
-        <p>Все разделы завершены и сохранены в общей базе.</p>
-      </div>
     </section>
     <section id="work" class="card hidden">
       <div class="row">
@@ -703,7 +699,6 @@ function renderHome(){
     const row=document.createElement('button');row.type='button';row.className='home-section-row';const icon=document.createElement('span');icon.className='home-section-icon';icon.textContent=st.completed?(f?'!':'✓'):processed?'◷':'○';
     const body=document.createElement('span');body.className='home-section-body';const title=document.createElement('strong');title.textContent=section.name;const meta=document.createElement('small');meta.textContent=d+' из '+n+' выполнено · '+f+' не выполнено';body.append(title,meta);
     const status=document.createElement('span');status.className='home-section-status '+(st.completed?(f?'has-fail':'is-done'):processed?'is-progress':'is-new');status.textContent=st.completed?(f?'Есть замечания':'Завершён'):processed?'В работе':'Не начат';row.append(icon,body,status);row.disabled=finished;row.onclick=()=>openSection(section.key);root.append(row);});
-  $('finished').classList.toggle('hidden',!finished);
 }
 async function confirmWorkday(){
   if(profile?.role!=='employee'||!day||day.confirmed_at)return;
