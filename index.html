@@ -1481,6 +1481,9 @@ async function createSmsCustomerOrder(){
             '; рабочий день на этот магазин сегодня='+String(x.workday_exists_for_employee_and_store_today)+
             '; проверка вставки должна пройти='+String(x.expected_insert_policy_result)+
             '; фактический результат RLS-функции='+String(x.actual_insert_policy_helper_result)+
+            '; ID магазина совпадает с текущим магазином БД='+String(x.current_store_matches_app)+
+            '; текущий магазин БД='+String(x.database_current_store_id)+
+            '; SELECT-политика должна пропустить новую карточку='+String(x.select_policy_should_allow_new_customer)+
             '; дата магазина='+String(x.store_local_date)+'.';
         }else{
           detail=' Диагностику базы получить не удалось: '+(d.error?.message||'нет данных');
