@@ -374,11 +374,15 @@ applyTheme(savedTheme);
 function hidePages(){
   ['setup','home','work','historyPage','smsPage','adminHomePage','adminHistoryPage','adminWorkdayPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
 }
-function setAdminNav(active){
-  ['homeNav','historyNav'].forEach(id=>{
+function setActiveNav(active){
+  ['homeNav','historyNav','smsNav'].forEach(id=>{
     const el=$(id);
-    if(el)el.classList.toggle('primary',id===active);
-    if(el)el.classList.toggle('secondary',id!==active);
+    if(!el)return;
+    const selected=id===active;
+    el.classList.toggle('primary',selected);
+    el.classList.toggle('secondary',!selected);
+    if(selected)el.setAttribute('aria-current','page');
+    else el.removeAttribute('aria-current');
   });
 }
 function toggleSettingsMenu(event){
@@ -403,6 +407,7 @@ document.addEventListener('click',event=>{
 function showPasswordChange(){
   closeSettingsMenu();
   clearMsg();
+  setActiveNav(null);
   hidePages();
   $('passwordPage').classList.remove('hidden');
   $('currentPassword').value='';
@@ -621,6 +626,7 @@ async function restoreToday(){
 }
 
 function goHome(){
+  setActiveNav('homeNav');
   hidePages();
   if(profile?.role==='admin'){showAdminHome();return;}
   if(!day){$('setup').classList.remove('hidden');return;}
@@ -895,6 +901,7 @@ function buildChecklistDetails(sectionRows){
 
 async function showHistory(){
   if(profile?.role==='admin'){await showAdminHistory();return;}
+  setActiveNav('historyNav');
   hidePages();
   $('historyPage').classList.remove('hidden');
   $('historyList').textContent='Загрузка истории…';
@@ -974,8 +981,8 @@ let adminDashboardRows=[];let adminDashboardFilter="all";let adminSelectedWorkda
 async function showAdmin(){await showAdminHome();}
 async function showAdminHistory(){
   if(profile?.role!=="admin")return;
+  setActiveNav('historyNav');
   hidePages();
-  setAdminNav("historyNav");
   $("adminHistoryPage").classList.remove("hidden");
   const employeeSelect=$("historyEmployee");
   const storeSelect=$("historyStore");
@@ -1005,7 +1012,7 @@ async function showAdminHistory(){
     $("adminHistoryResults").textContent="Не удалось открыть историю: "+(error.message||error);
   }
 }
-async function showAdminHome(){if(profile?.role!=="admin")return;hidePages();setAdminNav("homeNav");$("adminHomePage").classList.remove("hidden");if(!$("dashboardDateInput").value)$("dashboardDateInput").value=todayKey();await loadAdminDashboard();}
+async function showAdminHome(){if(profile?.role!=="admin")return;setActiveNav('homeNav');hidePages();$("adminHomePage").classList.remove("hidden");if(!$("dashboardDateInput").value)$("dashboardDateInput").value=todayKey();await loadAdminDashboard();}
 async function loadAdminDashboard(){if(profile?.role!=="admin")return;const root=$("dashboardResults");root.textContent="Загрузка…";try{const date=$("dashboardDateInput").value||todayKey();const r=await sb.from("workdays").select("id,employee_id,work_date,store_id,checked_in_at,arrival_status,confirmed_at,employees(full_name),stores(name),section_progress(section_key,answers,comments,completed_at)").eq("work_date",date).order("created_at",{ascending:true}).limit(500);if(r.error)throw r.error;adminDashboardRows=r.data||[];renderAdminDashboardList();}catch(e){root.textContent="Не удалось загрузить список: "+(e.message||e);}}
 function adminWorkdayState(item){if(item.confirmed_at)return "done";const p=getProgressStats(item.section_progress||[]);return item.checked_in_at||p.done||p.failed||(item.section_progress||[]).some(x=>x.completed_at)?"progress":"new";}
 function setAdminFilter(filter){adminDashboardFilter=filter;document.querySelectorAll("#dashboardFilters button").forEach(b=>b.classList.toggle("active",b.dataset.filter===filter));renderAdminDashboardList();}
@@ -1276,8 +1283,8 @@ function smsAgo(v){
 function smsEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
 
 async function showSms(){
+  setActiveNav('smsNav');
   hidePages();$('smsPage').classList.remove('hidden');
-  $('smsNav').classList.add('primary');$('smsNav').classList.remove('secondary');
   $('smsAdminStats').classList.toggle('hidden',profile?.role!=='admin');
   $('smsAdminControls').classList.toggle('hidden',profile?.role!=='admin');
   $('smsCreateLauncher').classList.toggle('hidden',profile?.role!=='employee');$('smsCreateArea').classList.add('hidden');
