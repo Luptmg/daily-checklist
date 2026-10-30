@@ -89,6 +89,16 @@ textarea{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid va
 .sms-history-line:last-child{border-bottom:0}
 .sms-copy-button{margin-top:8px}
 .sms-config-fields{padding:8px 0}
+.sms-board-tabs{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px;margin:12px 0}
+.sms-board-tab{background:var(--surface-soft);color:var(--text);border:1px solid var(--border);padding:11px 7px;font-size:13px;line-height:1.25}
+.sms-board-tab.active{background:var(--primary);color:white;border-color:var(--primary)}
+.sms-board-tab span{display:block;font-size:11px;font-weight:400;opacity:.85;margin-top:4px}
+.sms-create-toggle{width:48px;height:48px;padding:0;border-radius:50%;font-size:28px;line-height:1;box-shadow:0 3px 12px var(--shadow)}
+.sms-create-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.sms-create-heading h3{margin:0;font-size:17px}
+.sms-create-form{margin-top:12px}
+.sms-board-empty{padding:12px;background:var(--surface-soft);border-radius:10px}
+@media(max-width:560px){.sms-board-tab{font-size:12px;padding:10px 4px}.sms-board-tab span{font-size:10px}}
 @media(max-width:560px){.sms-order-card{padding:11px}.sms-message{max-height:55vh}.sms-copy-button{position:sticky;bottom:8px;z-index:2;box-shadow:0 3px 12px var(--shadow)}.sms-details>summary{padding:13px}}
 @media(max-width:560px){header{padding:18px 18px 70px}header h1{font-size:21px}.theme-toggle{left:18px;right:auto;top:auto;bottom:14px}.settings-toggle{right:18px;top:auto;bottom:14px}.settings-menu{right:12px;top:60px}main{padding:10px}.card{padding:14px}.nav button{font-size:13px;padding:11px 8px}}
 </style>
@@ -223,13 +233,18 @@ textarea{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid va
         <button class="primary" type="button" onclick="searchSmsCustomers()">Найти</button>
         <div id="smsSearchResults"></div>
       </div>
-      <div id="smsCreateCard" class="card">
-        <h2>Новый клиент и заказ</h2>
-        <input id="smsNewName" placeholder="Имя клиента">
-        <input id="smsNewPhone" type="tel" placeholder="Номер телефона">
-        <input id="smsNewOrder" placeholder="Номер заказа">
-        <textarea id="smsNewComment" placeholder="Комментарий (необязательно)" rows="2"></textarea>
-        <button class="primary" type="button" onclick="createSmsCustomerOrder()">Создать клиента и заказ</button>
+      <div id="smsCreateArea" class="hidden">
+        <div class="sms-create-heading"><h3>Новая карточка</h3><button class="primary sms-create-toggle" type="button" onclick="toggleSmsCreateForm(false)" aria-label="Закрыть форму">×</button></div>
+        <div id="smsCreateCard" class="card sms-create-form">
+          <input id="smsNewName" placeholder="Имя клиента">
+          <input id="smsNewPhone" type="tel" placeholder="Номер телефона">
+          <input id="smsNewOrder" placeholder="Номер заказа">
+          <textarea id="smsNewComment" placeholder="Комментарий (необязательно)" rows="2"></textarea>
+          <button class="primary" type="button" onclick="createSmsCustomerOrder()">Создать клиента и заказ</button>
+        </div>
+      </div>
+      <div class="row" id="smsCreateLauncher" style="justify-content:flex-end;margin:10px 0">
+        <button class="primary sms-create-toggle" type="button" onclick="toggleSmsCreateForm(true)" aria-label="Создать новую карточку">+</button>
       </div>
       <div id="smsCustomerDetails"></div>
     </section>
@@ -1430,7 +1445,7 @@ async function showSms(){
   $('smsNav').classList.add('primary');$('smsNav').classList.remove('secondary');
   $('smsAdminStats').classList.toggle('hidden',profile?.role!=='admin');
   $('smsAdminControls').classList.toggle('hidden',profile?.role!=='admin');
-  $('smsCreateCard').classList.toggle('hidden',profile?.role!=='employee');
+  $('smsCreateLauncher').classList.toggle('hidden',profile?.role!=='employee');$('smsCreateArea').classList.add('hidden');
   if(profile?.role==='admin'&&!$('smsAdminStore')){
     const controls=$('smsAdminControls');
     controls.innerHTML='<div class="sms-grid"><div><label>Магазин</label><select id="smsAdminStore"><option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('')+'</select></div><div><label>Сотрудник</label><select id="smsAdminEmployee"><option value="">Все сотрудники</option></select></div><div><label>С даты</label><input id="smsStatFrom" type="date"></div><div><label>По дату</label><input id="smsStatTo" type="date"></div></div><button class="secondary" onclick="loadSmsAdminStats();loadSmsLineBoards()">Применить фильтры</button>';
@@ -1702,28 +1717,39 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
     await openSmsCustomer(smsCustomer.id,smsOrder.id);msg('Ошибочное копирование отменено.','notice success');
   }catch(e){msg('Не удалось отменить копирование: '+e.message,'notice error');}
 }
+let smsBoardTab='mine';
+function selectSmsBoardTab(tab){smsBoardTab=tab;loadSmsLineBoards();}
+function toggleSmsCreateForm(open){
+  $('smsCreateArea')?.classList.toggle('hidden',!open);
+  if(open)$('smsNewName')?.focus();
+}
 async function loadSmsLineBoards(){
-  const root=$('smsLineBoards');root.innerHTML='Загружаю линии…';
+  const root=$('smsLineBoards');root.innerHTML='Загружаю заказы…';
   try{
     let q=sb.from('sms_lines').select('id,order_id,line_kind,status,initial_stage,current_stage,last_action_at,store_id,created_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_orders(order_number,customer_id,sms_customers(id,full_name,phone))').order('last_action_at',{ascending:false}).limit(500);
     if(profile?.role==='employee')q=q.eq('store_id',day.store_id);else {if($('smsAdminStore')?.value)q=q.eq('store_id',$('smsAdminStore').value);if($('smsAdminEmployee')?.value)q=q.eq('created_by_employee_id',$('smsAdminEmployee').value);}
     const r=await q;if(r.error)throw r.error;const rows=r.data||[];
-    const mine=profile?.role==='employee'?rows.filter(x=>x.created_by_employee_id===employee.id&&x.status==='active'):rows.filter(x=>x.status==='active');
     const active=rows.filter(x=>x.status==='active'),done=rows.filter(x=>x.status==='completed');
+    const mine=profile?.role==='employee'?active.filter(x=>x.created_by_employee_id===employee.id):active;
+    const storeOnly=profile?.role==='employee'?active.filter(x=>x.created_by_employee_id!==employee.id):[];
+    const groups=profile?.role==='employee'?[{id:'mine',title:'Мои заказы',list:mine},{id:'store',title:'Заказы магазина',list:storeOnly},{id:'done',title:'Завершённые',list:done}]:[{id:'mine',title:'Текущие заказы',list:active},{id:'done',title:'Завершённые',list:done}];
+    if(!groups.some(g=>g.id===smsBoardTab))smsBoardTab=groups[0].id;
     root.innerHTML='';
-    const addGroup=(title,list)=>{
-      const card=document.createElement('div');card.className='card';const h=document.createElement('h3');h.textContent=title+' ('+list.length+')';card.append(h);
-      if(!list.length){const p=document.createElement('p');p.className='muted';p.textContent='Нет линий.';card.append(p);}
-      list.forEach(x=>{
-        const b=document.createElement('button');b.className='section-button';const customer=x.sms_orders?.sms_customers;
-        const stage=(x.initial_stage==='configuration'&&x.current_stage!=='configuration'?'Конфигурация → ':'')+(smsTemplates[x.current_stage]?.name||smsTemplates[x.initial_stage]?.name||x.current_stage);
-        b.innerHTML='<span><strong>'+smsEsc(customer?.full_name||'Клиент')+' · Заказ №'+smsEsc(x.sms_orders?.order_number||'')+'</strong><small>'+smsEsc(stage||'Линия')+' · '+smsEsc(x.stores?.name||'')+' · '+smsAgo(x.last_action_at)+(profile?.role==='admin'?' · '+smsEsc(x.creator?.full_name||''):'')+'</small></span><span>Открыть</span>';
-        b.onclick=()=>openSmsCustomer(customer?.id,x.order_id);card.append(b);
-      });root.append(card);
-    };
-    if(profile?.role==='employee'){addGroup('Мои текущие линии',mine);addGroup('Текущие линии магазина',active);}else{addGroup('Текущие линии',active);}
-    addGroup('Завершённые линии',done);
-  }catch(e){root.textContent='Не удалось загрузить линии: '+e.message;}
+    const tabs=document.createElement('div');tabs.className='sms-board-tabs';tabs.setAttribute('role','tablist');
+    groups.forEach(g=>{
+      const b=document.createElement('button');b.type='button';b.className='sms-board-tab'+(smsBoardTab===g.id?' active':'');b.setAttribute('role','tab');b.setAttribute('aria-selected',String(smsBoardTab===g.id));
+      b.innerHTML=smsEsc(g.title)+'<span>'+g.list.length+'</span>';b.onclick=()=>selectSmsBoardTab(g.id);tabs.append(b);
+    });
+    root.append(tabs);
+    const selected=groups.find(g=>g.id===smsBoardTab);
+    if(!selected.list.length){const p=document.createElement('p');p.className='muted sms-board-empty';p.textContent='В этой категории пока нет заказов.';root.append(p);return;}
+    selected.list.forEach(x=>{
+      const b=document.createElement('button');b.className='section-button';const customer=x.sms_orders?.sms_customers;
+      const stage=(x.initial_stage==='configuration'&&x.current_stage!=='configuration'?'Конфигурация → ':'')+(smsTemplates[x.current_stage]?.name||smsTemplates[x.initial_stage]?.name||x.current_stage);
+      b.innerHTML='<span><strong>'+smsEsc(customer?.full_name||'Клиент')+' · Заказ №'+smsEsc(x.sms_orders?.order_number||'')+'</strong><small>'+smsEsc(stage||'Линия')+' · '+smsEsc(x.stores?.name||'')+' · '+smsAgo(x.last_action_at)+(profile?.role==='admin'?' · '+smsEsc(x.creator?.full_name||''):'')+'</small></span><span>Открыть</span>';
+      b.onclick=()=>openSmsCustomer(customer?.id,x.order_id);root.append(b);
+    });
+  }catch(e){root.textContent='Не удалось загрузить заказы: '+e.message;}
 }
 
 async function loadSmsAdminStats(){
