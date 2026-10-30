@@ -208,7 +208,7 @@ textarea{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid va
         <button class="primary" type="button" onclick="searchSmsCustomers()">Найти</button>
         <div id="smsSearchResults"></div>
       </div>
-      <div class="card">
+      <div id="smsCreateCard" class="card">
         <h2>Новый клиент и заказ</h2>
         <input id="smsNewName" placeholder="Имя клиента">
         <input id="smsNewPhone" type="tel" placeholder="Номер телефона">
@@ -1406,6 +1406,7 @@ async function showSms(){
   $('smsNav').classList.add('primary');$('smsNav').classList.remove('secondary');
   $('smsAdminStats').classList.toggle('hidden',profile?.role!=='admin');
   $('smsAdminControls').classList.toggle('hidden',profile?.role!=='admin');
+  $('smsCreateCard').classList.toggle('hidden',profile?.role!=='employee');
   if(profile?.role==='admin'&&!$('smsAdminStore')){
     const controls=$('smsAdminControls');
     controls.innerHTML='<div class="sms-grid"><div><label>Магазин</label><select id="smsAdminStore"><option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('')+'</select></div><div><label>Сотрудник</label><select id="smsAdminEmployee"><option value="">Все сотрудники</option></select></div><div><label>С даты</label><input id="smsStatFrom" type="date"></div><div><label>По дату</label><input id="smsStatTo" type="date"></div></div><button class="secondary" onclick="loadSmsAdminStats();loadSmsLineBoards()">Применить фильтры</button>';
