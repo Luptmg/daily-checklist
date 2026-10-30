@@ -375,7 +375,7 @@ function hidePages(){
   ['setup','home','work','historyPage','smsPage','adminHomePage','adminHistoryPage','adminWorkdayPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
 }
 function setAdminNav(active){
-  ['homeNav','historyNav','adminNav'].forEach(id=>{
+  ['homeNav','historyNav'].forEach(id=>{
     const el=$(id);
     if(el)el.classList.toggle('primary',id===active);
     if(el)el.classList.toggle('secondary',id!==active);
@@ -426,7 +426,6 @@ function showApp(){
   $('passwordSettingsButton').classList.remove('hidden');
   $('logoutSettingsDivider').classList.remove('hidden');
   $('logoutSettingsButton').classList.remove('hidden');
-  $('adminNav').classList.toggle('hidden',profile?.role!=='admin');
   $('smsNav').classList.toggle('hidden',profile?.role!=='admin'&&profile?.role!=='employee');
   $('notificationsSettings').classList.toggle('hidden',profile?.role!=='employee');
   const canSwitch=user?.id==='57caa325-ad50-447b-9b23-df6ec1ee15dd'
