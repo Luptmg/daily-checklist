@@ -437,45 +437,54 @@ async function signOut(){
   hideApp();
 }
 
+let bootInProgress=false;
 async function boot(){
-  clearMsg();
-  const {data:{session},error}=await sb.auth.getSession();
-  if(error)throw error;
-  if(!session){hideApp();return;}
-  user=session.user;
+  // Login submit, initial getSession and onAuthStateChange can all request boot.
+  // Ignore overlapping initializations to avoid rendering the admin dashboard twice.
+  if(bootInProgress)return;
+  bootInProgress=true;
+  try{
+    clearMsg();
+    const {data:{session},error}=await sb.auth.getSession();
+    if(error)throw error;
+    if(!session){hideApp();return;}
+    user=session.user;
 
-  const p=await sb.from('profiles')
-    .select('user_id,employee_id,role')
-    .eq('user_id',user.id).single();
+    const p=await sb.from('profiles')
+      .select('user_id,employee_id,role')
+      .eq('user_id',user.id).single();
 
-  if(p.error)throw new Error('Не удалось загрузить профиль: '+p.error.message);
-  profile=p.data;
-  if(!['admin','employee'].includes(profile.role))throw new Error('У профиля неизвестная роль.');
+    if(p.error)throw new Error('Не удалось загрузить профиль: '+p.error.message);
+    profile=p.data;
+    if(!['admin','employee'].includes(profile.role))throw new Error('У профиля неизвестная роль.');
 
-  if(profile.role==='employee'){
-    if(!profile.employee_id)throw new Error('У сотрудника не указан employee_id в profiles.');
-    const e=await sb.from('employees')
-      .select('id,full_name,primary_store_id,active')
-      .eq('id',profile.employee_id).single();
-    if(e.error)throw e.error;
-    if(!e.data.active)throw new Error('Учётная запись сотрудника отключена.');
-    employee=e.data;
-  }else{
-    employee=null;
-  }
+    if(profile.role==='employee'){
+      if(!profile.employee_id)throw new Error('У сотрудника не указан employee_id в profiles.');
+      const e=await sb.from('employees')
+        .select('id,full_name,primary_store_id,active')
+        .eq('id',profile.employee_id).single();
+      if(e.error)throw e.error;
+      if(!e.data.active)throw new Error('Учётная запись сотрудника отключена.');
+      employee=e.data;
+    }else{
+      employee=null;
+    }
 
-  const st=await sb.from('stores').select('id,name,city,timezone,warehouse_address,warehouse_city,review_yandex_url,review_2gis_url,phone').order('name');
-  if(st.error)throw st.error;
-  stores=st.data||[];
-  fillStoreSelects();
-  showApp();
+    const st=await sb.from('stores').select('id,name,city,timezone,warehouse_address,warehouse_city,review_yandex_url,review_2gis_url,phone').order('name');
+    if(st.error)throw st.error;
+    stores=st.data||[];
+    fillStoreSelects();
+    showApp();
 
-  if(profile.role==='admin'){
-    $('adminDate').value=todayKey();
-    $('dashboardDate').textContent=dateLabel(todayKey());
-    await showAdminHome();
-  }else{
-    await restoreToday();
+    if(profile.role==='admin'){
+      $('adminDate').value=todayKey();
+      $('dashboardDate').textContent=dateLabel(todayKey());
+      await showAdminHome();
+    }else{
+      await restoreToday();
+    }
+  }finally{
+    bootInProgress=false;
   }
 }
 
