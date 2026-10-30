@@ -107,6 +107,19 @@ body.sms-modal-open{overflow:hidden}
 @media(max-width:560px){.sms-board-tab{font-size:12px;padding:10px 4px}.sms-board-tab span{font-size:10px}}
 @media(max-width:560px){.sms-order-card{padding:11px}.sms-message{max-height:55vh}.sms-copy-button{position:sticky;bottom:8px;z-index:2;box-shadow:0 3px 12px var(--shadow)}.sms-details>summary{padding:13px}}
 @media(max-width:560px){header{padding:18px 18px 70px}header h1{font-size:21px}.theme-toggle{left:18px;right:auto;top:auto;bottom:14px}.settings-toggle{right:18px;top:auto;bottom:14px}.settings-menu{right:12px;top:60px}main{padding:10px}.card{padding:14px}.nav button{font-size:13px;padding:11px 8px}}
+.home-checkin{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:14px 0;padding:12px;background:var(--surface-soft);border-radius:12px}.home-checkin .primary{width:auto;margin-left:auto}
+.home-continue{display:block;width:100%;text-align:left;padding:18px;margin:12px 0 8px;background:var(--primary);color:#fff;border-radius:14px}.home-continue strong{display:block;font-size:18px}.home-continue.complete{background:var(--success);color:var(--success-text)}
+.home-section-row{display:flex;align-items:center;gap:12px;width:100%;padding:14px 10px;margin:0;border:0;border-bottom:1px solid var(--border);border-radius:0;background:transparent;color:var(--text);text-align:left}.home-section-icon{display:grid;place-items:center;width:36px;height:36px;flex:0 0 36px;border-radius:50%;background:var(--surface-soft);font-weight:700}
+.home-section-body{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.home-section-body small{font-size:12px;color:var(--muted)}.home-section-status{font-size:12px;font-weight:700;white-space:nowrap}.home-section-status.is-done{color:var(--success-text)}.home-section-status.is-progress{color:var(--primary)}.home-section-status.has-fail{color:var(--danger-text)}.home-section-status.is-new{color:var(--muted)}
+.admin-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:12px 0}.admin-filters button{padding:10px 5px;font-size:13px;background:var(--surface-soft);color:var(--text);border:1px solid var(--border)}.admin-filters button.active{background:var(--primary);color:white;border-color:var(--primary)}
+.admin-group-title{font-size:14px;color:var(--muted);margin:20px 0 6px}.admin-employee-row{display:flex;flex-direction:column;align-items:stretch;gap:7px;width:100%;padding:14px 12px;margin:0;border:0;border-bottom:1px solid var(--border);border-radius:0;background:transparent;color:var(--text);text-align:left}.admin-employee-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
+.admin-state-badge{display:inline-block;border-radius:20px;padding:5px 9px;font-size:11px;font-weight:700;white-space:nowrap;background:var(--surface-soft);color:var(--muted)}.admin-state-badge.progress{background:var(--primary-soft);color:var(--primary)}.admin-state-badge.done{background:var(--success);color:var(--success-text)}.admin-state-badge.new{background:var(--table-head);color:var(--muted)}
+.admin-row-progress{display:flex;align-items:center;gap:9px}.admin-row-progress .progress{flex:1;margin:0;height:5px}.admin-row-progress .progress span{display:block;height:100%;background:var(--progress)}.admin-row-progress small{font-size:12px;color:var(--muted);white-space:nowrap}.admin-empty{display:flex;flex-direction:column;gap:6px;padding:22px 12px;text-align:center;color:var(--muted);background:var(--surface-soft);border-radius:12px}.admin-empty strong{color:var(--text)}
+.admin-detail-heading{margin:18px 0}.admin-detail-heading h2{margin-bottom:5px}.admin-detail-progress{padding:14px;background:var(--surface-soft);border-radius:14px;margin:14px 0 22px}.admin-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.admin-count{display:flex;flex-direction:column;gap:3px;padding:10px 8px;border-radius:10px;background:var(--surface);text-align:center}.admin-count strong{font-size:22px}.admin-count span{font-size:11px;color:var(--muted)}
+.admin-count.done strong{color:var(--success-text)}.admin-count.failed strong{color:var(--danger-text)}.admin-count.pending strong{color:var(--muted)}.admin-accordion{border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:9px 0}.admin-accordion-toggle{display:flex;align-items:center;gap:10px;width:100%;padding:14px;background:var(--surface-soft);color:var(--text);text-align:left}
+.admin-accordion-toggle>span:first-child{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.admin-accordion-toggle small{font-size:12px;color:var(--muted);font-weight:400}.admin-accordion-status{font-size:11px;color:var(--muted);white-space:nowrap}.admin-accordion-body{padding:0 12px}
+.admin-task-row{padding:12px 0;border-bottom:1px solid var(--border)}.admin-task-row:last-child{border-bottom:0}.admin-task-state{display:block;font-size:12px;margin-bottom:5px}.admin-task-state.done{color:var(--success-text)}.admin-task-state.failed{color:var(--danger-text)}.admin-task-state.pending{color:var(--muted)}.admin-task-text{font-size:14px;line-height:1.5}.admin-task-comment{margin-top:8px;padding:10px;border-radius:9px;background:var(--notice);color:var(--notice-text);font-size:13px;line-height:1.5;white-space:pre-wrap}
+@media(max-width:560px){.admin-filters{gap:4px}.admin-filters button{font-size:11px;padding:10px 2px}.admin-counts{gap:5px}.admin-count{padding:9px 4px}.admin-count strong{font-size:20px}.home-section-status{font-size:11px}}
 </style>
 </head>
 <body>
@@ -159,17 +172,17 @@ body.sms-modal-open{overflow:hidden}
       <button id="smsNav" class="secondary" onclick="showSms()">Сообщения клиентам</button>
       <button id="adminNav" class="secondary hidden" onclick="showAdmin()">Панель руководителя</button>
     </div>
-    <section id="adminHomePage" class="hidden">
-      <div class="card">
-        <div class="row"><h2>Обзор за сегодня</h2><button class="secondary" type="button" onclick="loadAdminDashboard()">Обновить</button></div>
-        <p id="dashboardDate" class="muted"></p>
-        <div id="dashboardStats" class="dashboard-stats"></div>
-      </div>
-      <div class="card">
-        <h2>Рабочие дни сотрудников</h2>
-        <div id="dashboardResults"></div>
-      </div>
-    </section>
+    <section id="adminHomePage" class="hidden"><div class="card">
+      <div class="row"><h2>Рабочие дни</h2><button class="secondary" type="button" onclick="loadAdminDashboard()">Обновить</button></div>
+      <label for="dashboardDateInput">Дата</label><input type="date" id="dashboardDateInput">
+      <input id="dashboardSearch" type="search" placeholder="Поиск по сотруднику или магазину" oninput="renderAdminDashboardList()">
+      <div id="dashboardFilters" class="admin-filters"><button type="button" data-filter="all" class="active">Все</button><button type="button" data-filter="progress">В работе</button><button type="button" data-filter="done">Завершённые</button><button type="button" data-filter="new">Не начатые</button></div>
+      <div id="dashboardResults"></div></div></section>
+    <section id="adminWorkdayPage" class="card hidden"><div class="row"><button class="secondary" type="button" onclick="backToAdminList()">← К списку</button><span id="adminWorkdayStatus" class="pill"></span></div>
+      <div class="admin-detail-heading"><h2 id="adminWorkdayName"></h2><div id="adminWorkdayMeta" class="muted"></div></div>
+      <div class="admin-detail-progress"><div class="row"><strong>Общий прогресс</strong><strong id="adminWorkdayPercent"></strong></div><div class="progress"><div id="adminWorkdayBar"></div></div>
+      <div class="admin-counts"><div class="admin-count done"><strong id="adminCountDone">0</strong><span>Выполнено</span></div><div class="admin-count failed"><strong id="adminCountFailed">0</strong><span>Не выполнено</span></div><div class="admin-count pending"><strong id="adminCountPending">0</strong><span>Не обработано</span></div></div></div>
+      <h3>Разделы чек-листа</h3><div id="adminWorkdaySections"></div></section>
     <section id="adminHistoryPage" class="card hidden">
       <h2>История рабочих дней</h2>
       <div class="row">
@@ -395,7 +408,7 @@ try{savedTheme=localStorage.getItem('dailyChecklistTheme')||'light';}catch(e){}
 applyTheme(savedTheme);
 
 function hidePages(){
-  ['setup','home','work','historyPage','smsPage','adminPage','adminHomePage','adminHistoryPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
+  ['setup','home','work','historyPage','smsPage','adminPage','adminHomePage','adminHistoryPage','adminWorkdayPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
 }
 function setAdminNav(active){
   ['homeNav','historyNav','adminNav'].forEach(id=>{
