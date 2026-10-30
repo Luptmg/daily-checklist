@@ -200,7 +200,7 @@ textarea{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid va
     </section>
     <section id="smsPage" class="card hidden">
       <div class="row"><h2>Сообщения клиентам</h2><button class="secondary" type="button" onclick="loadSmsHome()">Обновить</button></div>
-      <div id="smsAdminStats" class="hidden"></div>
+      <div id="smsAdminControls" class="hidden"></div><div id="smsAdminStats" class="hidden"></div>
       <div id="smsLineBoards"></div>
       <div class="card">
         <h2>Поиск клиента или заказа</h2>
@@ -1405,9 +1405,12 @@ async function showSms(){
   hidePages();$('smsPage').classList.remove('hidden');
   $('smsNav').classList.add('primary');$('smsNav').classList.remove('secondary');
   $('smsAdminStats').classList.toggle('hidden',profile?.role!=='admin');
+  $('smsAdminControls').classList.toggle('hidden',profile?.role!=='admin');
   if(profile?.role==='admin'&&!$('smsAdminStore')){
-    const s=document.createElement('select');s.id='smsAdminStore';s.innerHTML='<option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('');
-    $('smsAdminStats').append(s);s.onchange=()=>{loadSmsAdminStats();loadSmsLineBoards();};
+    const controls=$('smsAdminControls');
+    controls.innerHTML='<div class="sms-grid"><div><label>Магазин</label><select id="smsAdminStore"><option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('')+'</select></div><div><label>Сотрудник</label><select id="smsAdminEmployee"><option value="">Все сотрудники</option></select></div><div><label>С даты</label><input id="smsStatFrom" type="date"></div><div><label>По дату</label><input id="smsStatTo" type="date"></div></div><button class="secondary" onclick="loadSmsAdminStats();loadSmsLineBoards()">Применить фильтры</button>';
+    const er=await sb.from('employees').select('id,full_name').eq('active',true).order('full_name');
+    if(!er.error)er.data.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.full_name;$('smsAdminEmployee').append(o);});
   }
   await loadSmsHome();
 }
@@ -1607,20 +1610,23 @@ async function loadSmsLineBoards(){
 
 async function loadSmsAdminStats(){
   const root=$('smsAdminStats');root.innerHTML='<h3>Статистика сообщений</h3>';
-  const [daily,lifetime]=await Promise.all([
-    sb.from('sms_employee_store_daily_stats').select('employee_id,store_id,stat_date,copied_messages,completed_lines,employees(full_name),stores(name)').order('stat_date',{ascending:false}).limit(500),
-    sb.from('sms_employee_store_lifetime_stats').select('employee_id,store_id,copied_messages,completed_lines,employees(full_name),stores(name)').order('copied_messages',{ascending:false})
-  ]);
+  const store=$('smsAdminStore')?.value||'',emp=$('smsAdminEmployee')?.value||'',from=$('smsStatFrom')?.value||'',to=$('smsStatTo')?.value||'';
+  let dq=sb.from('sms_employee_store_daily_stats').select('employee_id,store_id,stat_date,copied_messages,completed_lines,employees(full_name),stores(name)').order('stat_date',{ascending:false}).limit(5000);
+  let lq=sb.from('sms_employee_store_lifetime_stats').select('employee_id,store_id,copied_messages,completed_lines,employees(full_name),stores(name)').order('copied_messages',{ascending:false});
+  if(store){dq=dq.eq('store_id',store);lq=lq.eq('store_id',store);}
+  if(emp){dq=dq.eq('employee_id',emp);lq=lq.eq('employee_id',emp);}
+  if(from)dq=dq.gte('stat_date',from);
+  if(to)dq=dq.lte('stat_date',to);
+  const [daily,lifetime]=await Promise.all([dq,lq]);
   if(daily.error)throw daily.error;if(lifetime.error)throw lifetime.error;
-  const store=$('smsAdminStore')?.value;
-  const filter=x=>!store||x.store_id===store;
+  const rows=daily.data||[],lifeRows=lifetime.data||[];
+  const total=rows.reduce((a,x)=>a+x.copied_messages,0),completed=rows.reduce((a,x)=>a+x.completed_lines,0);
+  const life=lifeRows.reduce((a,x)=>a+Number(x.copied_messages),0),lifeCompleted=lifeRows.reduce((a,x)=>a+Number(x.completed_lines),0);
   const wrap=document.createElement('div');wrap.className='sms-grid';
-  const total=(daily.data||[]).filter(filter).reduce((a,x)=>a+x.copied_messages,0);
-  const life=(lifetime.data||[]).filter(filter).reduce((a,x)=>a+Number(x.copied_messages),0);
-  wrap.innerHTML='<div class="dashboard-stat"><strong>'+total+'</strong><span>Скопировано по дням в доступной истории</span></div><div class="dashboard-stat"><strong>'+life+'</strong><span>Скопировано за всё время</span></div>';
+  wrap.innerHTML='<div class="dashboard-stat"><strong>'+total+'</strong><span>Скопировано за выбранный период</span></div><div class="dashboard-stat"><strong>'+completed+'</strong><span>Завершено линий за период</span></div><div class="dashboard-stat"><strong>'+life+'</strong><span>Скопировано за всё время</span></div><div class="dashboard-stat"><strong>'+lifeCompleted+'</strong><span>Завершено линий за всё время</span></div>';
   root.append(wrap);
-  (lifetime.data||[]).filter(filter).forEach(x=>{const p=document.createElement('p');p.className='small';p.textContent=(x.employees?.full_name||'Сотрудник')+' · '+(x.stores?.name||'Магазин')+' · за всё время: '+x.copied_messages;root.append(p);});
-  $('smsCustomerDetails').innerHTML='<p class="muted">Администратор может просматривать статистику. Для поиска клиентов выбери магазин в фильтре или используй поиск.</p>';
+  const h=document.createElement('h3');h.textContent='По сотрудникам за всё время';root.append(h);
+  lifeRows.forEach(x=>{const p=document.createElement('p');p.className='small';p.textContent=(x.employees?.full_name||'Сотрудник')+' · '+(x.stores?.name||'Магазин')+' · SMS: '+x.copied_messages+' · завершено линий: '+x.completed_lines;root.append(p);});
 }
 
 if(!configured){
