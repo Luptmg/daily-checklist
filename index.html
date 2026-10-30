@@ -1014,7 +1014,7 @@ async function loadAdminDashboard(){
     if(!rows.length){root.textContent='На сегодня пока нет рабочих дней.';return;}
     rows.forEach(item=>{
       const line=document.createElement('div');line.className='admin-record';
-      const name=document.createElement('strong');name.textContent=item.employees?.full_name||'Сотрудник';
+      const name=document.createElement('strong');name.textContent=item.copier?.full_name||'Сотрудник';
       const meta=document.createElement('div');meta.className='small';
       const arrival=item.checked_in_at?new Date(item.checked_in_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})+(item.arrival_status==='on_time'?' · вовремя':' · опоздание'):'Приход не отмечен';
       const p=getProgressStats(item.section_progress||[]);
@@ -1484,7 +1484,7 @@ async function addSmsOrder(){
 async function selectSmsOrder(id){
   const r=await sb.from('sms_orders').select('id,order_number,created_at').eq('id',id).single();if(r.error)throw r.error;smsOrder=r.data;
   const storeId=profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id;
-  const lineQuery=sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),employees(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,employees(full_name))').eq('order_id',id).order('created_at',{ascending:false});
+  const lineQuery=sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,copier:employees!sms_messages_copied_by_employee_id_fkey(full_name))').eq('order_id',id).order('created_at',{ascending:false});
   if(storeId)lineQuery.eq('store_id',storeId);
   const l=await lineQuery;if(l.error)throw l.error;smsLines=l.data||[];
   renderSmsOrder();
@@ -1499,7 +1499,7 @@ function renderSmsLines(){
   smsLines.forEach(l=>{
     const d=document.createElement('div');d.className='sms-line';
     const status=l.status==='completed'?'Завершена':'Текущая';
-    d.innerHTML='<strong>'+(l.line_kind==='main'?'Основная линия':'Самостоятельная линия')+' · '+status+'</strong><div class="small">'+smsEsc(l.stores?.name||'Магазин')+' · Создал: '+smsEsc(l.employees?.full_name||'—')+' · '+smsAgo(l.last_action_at)+'</div>';
+    d.innerHTML='<strong>'+(l.line_kind==='main'?'Основная линия':'Самостоятельная линия')+' · '+status+'</strong><div class="small">'+smsEsc(l.stores?.name||'Магазин')+' · Создал: '+smsEsc(l.creator?.full_name||'—')+' · '+smsAgo(l.last_action_at)+'</div>';
     (l.sms_messages||[]).sort((a,b)=>new Date(a.copied_at)-new Date(b.copied_at)).forEach(m=>{
       const p=document.createElement('div');p.className='small';p.textContent=smsTemplates[m.template_key]?.name+' · '+new Date(m.copied_at).toLocaleString('ru-RU')+' · скопировал: '+(m.employees?.full_name||'—')+(m.is_additional?' · дополнительное':'');d.append(p);
       if(profile?.role==='employee'&&m.copied_by_employee_id===employee.id){const undo=document.createElement('button');undo.className='danger';undo.style.marginTop='5px';undo.textContent='Отменить ошибочное копирование';undo.onclick=()=>cancelSmsMessage(m.id,l.id,m.stage_before,m.stage_after,l.line_kind,m.line_last_action_before,m.customer_last_activity_before,m.line_status_before,m.line_completed_at_before);d.append(undo);}
@@ -1602,7 +1602,7 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
 async function loadSmsLineBoards(){
   const root=$('smsLineBoards');root.innerHTML='Загружаю линии…';
   try{
-    let q=sb.from('sms_lines').select('id,order_id,line_kind,status,initial_stage,current_stage,last_action_at,store_id,created_by_employee_id,stores(name),employees(full_name),sms_orders(order_number,customer_id,sms_customers(full_name,phone))').order('last_action_at',{ascending:false}).limit(500);
+    let q=sb.from('sms_lines').select('id,order_id,line_kind,status,initial_stage,current_stage,last_action_at,store_id,created_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_orders(order_number,customer_id,sms_customers(full_name,phone))').order('last_action_at',{ascending:false}).limit(500);
     if(profile?.role==='employee')q=q.eq('store_id',day.store_id);else {if($('smsAdminStore')?.value)q=q.eq('store_id',$('smsAdminStore').value);if($('smsAdminEmployee')?.value)q=q.eq('created_by_employee_id',$('smsAdminEmployee').value);}
     const r=await q;if(r.error)throw r.error;const rows=r.data||[];
     const mine=profile?.role==='employee'?rows.filter(x=>x.created_by_employee_id===employee.id&&x.status==='active'):rows.filter(x=>x.status==='active');
@@ -1614,7 +1614,7 @@ async function loadSmsLineBoards(){
       list.forEach(x=>{
         const b=document.createElement('button');b.className='section-button';const customer=x.sms_orders?.sms_customers;
         const stage=(x.initial_stage==='configuration'&&x.current_stage!=='configuration'?'Конфигурация → ':'')+(smsTemplates[x.current_stage]?.name||smsTemplates[x.initial_stage]?.name||x.current_stage);
-        b.innerHTML='<span><strong>'+smsEsc(customer?.full_name||'Клиент')+' · Заказ №'+smsEsc(x.sms_orders?.order_number||'')+'</strong><small>'+smsEsc(stage||'Линия')+' · '+smsEsc(x.stores?.name||'')+' · '+smsAgo(x.last_action_at)+(profile?.role==='admin'?' · '+smsEsc(x.employees?.full_name||''):'')+'</small></span><span>Открыть</span>';
+        b.innerHTML='<span><strong>'+smsEsc(customer?.full_name||'Клиент')+' · Заказ №'+smsEsc(x.sms_orders?.order_number||'')+'</strong><small>'+smsEsc(stage||'Линия')+' · '+smsEsc(x.stores?.name||'')+' · '+smsAgo(x.last_action_at)+(profile?.role==='admin'?' · '+smsEsc(x.creator?.full_name||''):'')+'</small></span><span>Открыть</span>';
         b.onclick=()=>openSmsCustomer(customer?.id,x.order_id);card.append(b);
       });root.append(card);
     };
