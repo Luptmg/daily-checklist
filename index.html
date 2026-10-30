@@ -1462,12 +1462,13 @@ async function createSmsCustomerOrder(){
     const found=await sb.from('sms_customers').select('id,full_name,phone').eq('phone_normalized',digits).maybeSingle();
     if(found.error)throw found.error;
     if(found.data){msg('Клиент с таким телефоном уже существует. Открой его через поиск и добавь заказ.','notice error');await openSmsCustomer(found.data.id);return;}
-    const c=await sb.from('sms_customers').insert({full_name:name,phone,phone_normalized:digits,comment:$('smsNewComment').value.trim()||null,primary_store_id:day.store_id,created_by_employee_id:employee.id}).select('id').single();
+    const customerId=crypto.randomUUID();
+    const c=await sb.from('sms_customers').insert({id:customerId,full_name:name,phone,phone_normalized:digits,comment:$('smsNewComment').value.trim()||null,primary_store_id:day.store_id,created_by_employee_id:employee.id});
     if(c.error)throw c.error;
-    const o=await sb.from('sms_orders').insert({customer_id:c.data.id,order_number:order}).select('id').single();
-    if(o.error){await sb.from('sms_customers').delete().eq('id',c.data.id);throw o.error;}
+    const o=await sb.from('sms_orders').insert({customer_id:customerId,order_number:order}).select('id').single();
+    if(o.error){await sb.from('sms_customers').delete().eq('id',customerId);throw o.error;}
     ['smsNewName','smsNewPhone','smsNewOrder','smsNewComment'].forEach(id=>$(id).value='');
-    await openSmsCustomer(c.data.id,o.data.id);
+    await openSmsCustomer(customerId,o.data.id);
     msg('Клиент и заказ созданы. Теперь выбери первый шаблон.','notice success');
   }catch(e){
     let detail='';
