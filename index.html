@@ -1502,7 +1502,7 @@ function renderSmsLines(){
     d.innerHTML='<strong>'+(l.line_kind==='main'?'Основная линия':'Самостоятельная линия')+' · '+status+'</strong><div class="small">'+smsEsc(l.stores?.name||'Магазин')+' · Создал: '+smsEsc(l.employees?.full_name||'—')+' · '+smsAgo(l.last_action_at)+'</div>';
     (l.sms_messages||[]).sort((a,b)=>new Date(a.copied_at)-new Date(b.copied_at)).forEach(m=>{
       const p=document.createElement('div');p.className='small';p.textContent=smsTemplates[m.template_key]?.name+' · '+new Date(m.copied_at).toLocaleString('ru-RU')+' · скопировал: '+(m.employees?.full_name||'—')+(m.is_additional?' · дополнительное':'');d.append(p);
-      if(profile?.role==='employee'&&m.copied_by_employee_id===employee.id){const undo=document.createElement('button');undo.className='danger';undo.style.marginTop='5px';undo.textContent='Отменить ошибочное копирование';undo.onclick=()=>cancelSmsMessage(m.id,l.id,m.stage_before,m.stage_after,l.line_kind);d.append(undo);}
+      if(profile?.role==='employee'&&m.copied_by_employee_id===employee.id){const undo=document.createElement('button');undo.className='danger';undo.style.marginTop='5px';undo.textContent='Отменить ошибочное копирование';undo.onclick=()=>cancelSmsMessage(m.id,l.id,m.stage_before,m.stage_after,l.line_kind,m.line_last_action_before,m.customer_last_activity_before,m.line_status_before,m.line_completed_at_before);d.append(undo);}
     });
     root.append(d);
   });
@@ -1544,25 +1544,24 @@ async function copySmsMessage(){
     else if(main.current_stage==='accepted'&&['warehouse_pickup','warehouse_delivery'].includes(key)){stageBefore='accepted';stageAfter=key;}
     else if(['warehouse_pickup','warehouse_delivery','dispatch','cdek'].includes(main.current_stage)&&key==='review'){stageBefore=main.current_stage;stageAfter='review';complete=true;}
     else {isAdditional=true;}
-    if(stageAfter){
-      const up=await sb.from('sms_lines').update({current_stage:stageAfter,status:complete?'completed':'active',completed_at:complete?new Date().toISOString():null,completed_by_employee_id:complete?employee.id:null,last_action_at:new Date().toISOString()}).eq('id',main.id);
-      if(up.error)throw up.error;
-    }
   }
   if(main&&['configuration','review','thanks'].includes(key)&&!stageAfter)isAdditional=true;
   const text=$('smsPreview').textContent;
+  const customerActivityBefore=smsCustomer.last_activity_at;
   try{await navigator.clipboard.writeText(text);}catch(e){
-    if(line&&line.created_at&&line.created_at===line.last_action_at)await sb.from('sms_lines').delete().eq('id',line.id);
-    if(main&&stageAfter)await sb.from('sms_lines').update({current_stage:stageBefore,status:'active',completed_at:null}).eq('id',main.id);
+    if(!main&&line)await sb.from('sms_lines').delete().eq('id',line.id);
     msg('Браузер не разрешил копирование. Проверь разрешение буфера обмена.','notice error');return;
   }
-  const insMsg=await sb.from('sms_messages').insert({line_id:line.id,order_id:smsOrder.id,template_key:key,rendered_text:text,copied_by_employee_id:employee.id,is_additional:isAdditional,stage_before:stageBefore,stage_after:stageAfter}).select('id').single();
+  const insMsg=await sb.from('sms_messages').insert({line_id:line.id,order_id:smsOrder.id,template_key:key,rendered_text:text,copied_by_employee_id:employee.id,is_additional:isAdditional,stage_before:stageBefore,stage_after:stageAfter,line_last_action_before:main?.last_action_at||null,customer_last_activity_before:customerActivityBefore,line_status_before:main?.status||null,line_completed_at_before:main?.completed_at||null}).select('id').single();
   if(insMsg.error){
-    if(stageAfter&&stageBefore)await sb.from('sms_lines').update({current_stage:stageBefore,status:'active',completed_at:null}).eq('id',line.id);
-    else if(!main)await sb.from('sms_lines').delete().eq('id',line.id);
+    if(!main)await sb.from('sms_lines').delete().eq('id',line.id);
     msg('Текст скопирован, но не удалось сохранить историю: '+insMsg.error.message,'notice error');return;
   }
-  await sb.from('sms_lines').update({last_action_at:new Date().toISOString(),...(complete?{completed_by_employee_id:employee.id}:{})}).eq('id',line.id);
+  const lineUpdate={last_action_at:new Date().toISOString()};
+  if(stageAfter){lineUpdate.current_stage=stageAfter;lineUpdate.status=complete?'completed':'active';lineUpdate.completed_at=complete?new Date().toISOString():null;lineUpdate.completed_by_employee_id=complete?employee.id:null;}
+  const lineSaved=await sb.from('sms_lines').update(lineUpdate).eq('id',line.id);
+  if(lineSaved.error){msg('SMS скопировано и сохранено, но не удалось обновить этап линии: '+lineSaved.error.message,'notice error');return;}
+  smsCustomer.last_activity_at=new Date().toISOString();
   await loadSmsLines();renderSmsOrder();msg('SMS скопировано и сохранено в истории.','notice success');
 }
 async function loadSmsLines(){
@@ -1571,17 +1570,28 @@ async function loadSmsLines(){
   if(r.error)throw r.error;smsLines=r.data||[];renderSmsLines();
 }
 
-async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind){
+async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind,lineLastBefore,customerLastBefore,lineStatusBefore,lineCompletedBefore){
   if(!confirm('Удалить ошибочное копирование из истории и отменить его влияние на линию?'))return;
   try{
+    const later=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('order_id',smsOrder.id).gt('copied_at',new Date().toISOString().slice(0,0)+'1970-01-01');
+    if(later.error)throw later.error;
+    const current=await sb.from('sms_messages').select('id,copied_at').eq('id',messageId).single();if(current.error)throw current.error;
+    const newer=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('order_id',smsOrder.id).gt('copied_at',current.data.copied_at);
+    if(newer.error)throw newer.error;
+    if(newer.count>0){msg('Можно отменить только последнее копирование в заказе.','notice error');return;}
     const del=await sb.from('sms_messages').delete().eq('id',messageId);if(del.error)throw del.error;
-    if(stageAfter){
-      if(!stageBefore){const d=await sb.from('sms_lines').delete().eq('id',lineId);if(d.error)throw d.error;}
-      else{const u=await sb.from('sms_lines').update({current_stage:stageBefore,status:'active',completed_at:null,completed_by_employee_id:null}).eq('id',lineId);if(u.error)throw u.error;}
-    }else if(lineKind==='standalone'){
-      const remain=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('line_id',lineId);
-      if(!remain.error&&remain.count===0)await sb.from('sms_lines').delete().eq('id',lineId);
+    if(stageAfter&&!stageBefore){const d=await sb.from('sms_lines').delete().eq('id',lineId);if(d.error)throw d.error;}
+    else{
+      const patch={last_action_at:lineLastBefore||new Date().toISOString()};
+      if(stageAfter){patch.current_stage=stageBefore;patch.status=lineStatusBefore||'active';patch.completed_at=lineCompletedBefore||null;patch.completed_by_employee_id=null;}
+      const u=await sb.from('sms_lines').update(patch).eq('id',lineId);if(u.error)throw u.error;
+      if(lineKind==='standalone'){
+        const remain=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('line_id',lineId);
+        if(!remain.error&&remain.count===0){const d=await sb.from('sms_lines').delete().eq('id',lineId);if(d.error)throw d.error;}
+      }
     }
+    if(customerLastBefore)await sb.from('sms_customers').update({last_activity_at:customerLastBefore}).eq('id',smsCustomer.id);
+    smsCustomer.last_activity_at=customerLastBefore||smsCustomer.last_activity_at;
     await openSmsCustomer(smsCustomer.id,smsOrder.id);msg('Ошибочное копирование отменено.','notice success');
   }catch(e){msg('Не удалось отменить копирование: '+e.message,'notice error');}
 }
