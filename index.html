@@ -201,6 +201,7 @@ textarea{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid va
     <section id="smsPage" class="card hidden">
       <div class="row"><h2>Сообщения клиентам</h2><button class="secondary" type="button" onclick="loadSmsHome()">Обновить</button></div>
       <div id="smsAdminStats" class="hidden"></div>
+      <div id="smsLineBoards"></div>
       <div class="card">
         <h2>Поиск клиента или заказа</h2>
         <input id="smsSearch" placeholder="Телефон клиента или номер заказа">
@@ -1412,9 +1413,9 @@ async function showSms(){
   await loadSmsHome();
 }
 async function loadSmsHome(){
-  if(profile?.role==='admin'){await loadSmsAdminStats();return;}
+  if(profile?.role==='admin'){await loadSmsAdminStats();await loadSmsLineBoards();return;}
   if(!day?.store_id){$('smsCustomerDetails').innerHTML='<p class="notice">Сначала начни рабочий день и выбери магазин.</p>';return;}
-  await loadSmsLines();
+  await loadSmsLineBoards();
 }
 async function searchSmsCustomers(){
   const term=$('smsSearch').value.trim(),digits=smsNormalizePhone(term),root=$('smsSearchResults');
@@ -1484,8 +1485,8 @@ async function selectSmsOrder(id){
   renderSmsOrder();
 }
 function renderSmsOrder(){
-  const root=$('smsCustomerDetails');let html='<div class="card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><p class="muted">Дата создания: '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</p><div class="sms-grid"><div><label>Шаблон</label><select id="smsTemplate" onchange="previewSms()">'+Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('')+'</select></div><div><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..."></div><div><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..."></div></div><div id="smsPreview" class="sms-message"></div><button class="primary" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
-  root.insertAdjacentHTML('beforeend',html);renderSmsLines();previewSms();
+  const root=$('smsCustomerDetails');const old=$('smsOrderWork');if(old)old.remove();let html='<div class="card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><p class="muted">Дата создания: '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</p><div class="sms-grid"><div><label>Шаблон</label><select id="smsTemplate" onchange="previewSms()">'+Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('')+'</select></div><div><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..."></div><div><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..."></div></div><div id="smsPreview" class="sms-message"></div><button class="primary" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
+  root.insertAdjacentHTML('beforeend','<div id="smsOrderWork">'+html+'</div>');renderSmsLines();previewSms();
 }
 function renderSmsLines(){
   const root=$('smsLineList');if(!root)return;root.innerHTML='<h3>Линии и история</h3>';
@@ -1494,14 +1495,17 @@ function renderSmsLines(){
     const d=document.createElement('div');d.className='sms-line';
     const status=l.status==='completed'?'Завершена':'Текущая';
     d.innerHTML='<strong>'+(l.line_kind==='main'?'Основная линия':'Самостоятельная линия')+' · '+status+'</strong><div class="small">'+smsEsc(l.stores?.name||'Магазин')+' · Создал: '+smsEsc(l.employees?.full_name||'—')+' · '+smsAgo(l.last_action_at)+'</div>';
-    (l.sms_messages||[]).sort((a,b)=>new Date(a.copied_at)-new Date(b.copied_at)).forEach(m=>{const p=document.createElement('div');p.className='small';p.textContent=smsTemplates[m.template_key]?.name+' · '+new Date(m.copied_at).toLocaleString('ru-RU')+' · скопировал: '+(m.employees?.full_name||'—');d.append(p);});
+    (l.sms_messages||[]).sort((a,b)=>new Date(a.copied_at)-new Date(b.copied_at)).forEach(m=>{
+      const p=document.createElement('div');p.className='small';p.textContent=smsTemplates[m.template_key]?.name+' · '+new Date(m.copied_at).toLocaleString('ru-RU')+' · скопировал: '+(m.employees?.full_name||'—')+(m.is_additional?' · дополнительное':'');d.append(p);
+      if(profile?.role==='employee'&&m.copied_by_employee_id===employee.id){const undo=document.createElement('button');undo.className='danger';undo.style.marginTop='5px';undo.textContent='Отменить ошибочное копирование';undo.onclick=()=>cancelSmsMessage(m.id,l.id,m.stage_before,m.stage_after,l.line_kind);d.append(undo);}
+    });
     root.append(d);
   });
 }
 function previewSms(){
   if(!smsOrder||!smsCustomer)return;
   const key=$('smsTemplate').value,t=smsTemplates[key],store=stores.find(s=>s.id===(profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id))||stores.find(s=>s.id===smsCustomer.primary_store_id);
-  const data={name:smsCustomer.full_name,employee:employee?.full_name||'сотрудник',store:store?.name||'Магазин',phone:store?.phone||'+7 (919) 381-77-25',address:store?.warehouse_address||'АДРЕС СКЛАДА',city:store?.warehouse_city||store?.city||'Екатеринбурге',order:smsOrder.order_number,isDanil:employee?.full_name==='Лаптев Данил',link1:$('smsLink1')?.value||'ССЫЛКА 1',link2:$('smsLink2')?.value||'',yandex:store?.review_yandex_url||'',gis:store?.review_2gis_url||''};
+  const data={name:smsCustomer.full_name,employee:employee?.full_name||'сотрудник',store:store?.name||'Магазин',phone:store?.phone||'+7 (919) 381-77-25',address:store?.warehouse_address||'АДРЕС СКЛАДА',city:(store?.warehouse_city==='Краснодар'?'Краснодаре':store?.warehouse_city==='Екатеринбург'?'Екатеринбурге':store?.warehouse_city||'Екатеринбурге'),order:smsOrder.order_number,isDanil:employee?.full_name==='Лаптев Данил',link1:$('smsLink1')?.value||'ССЫЛКА 1',link2:$('smsLink2')?.value||'',yandex:store?.review_yandex_url||'',gis:store?.review_2gis_url||''};
   $('smsPreview').textContent=t.text(data);
 }
 async function copySmsMessage(){
@@ -1513,6 +1517,7 @@ async function copySmsMessage(){
   const standalone=existing.find(x=>x.line_kind==='standalone'&&x.initial_stage===key);
   let line=null,isAdditional=false,stageBefore=null,stageAfter=null,complete=false;
   if(!main){
+    const hasConfig=existing.some(x=>x.line_kind==='standalone'&&x.initial_stage==='configuration');
     if(key==='warehouse_delivery'){msg('Шаблон «На складе доставка» доступен только после «Принято».','notice error');return;}
     if(['configuration','review','thanks'].includes(key)){
       if(key==='configuration'&&standalone){msg('Конфигурация уже создавалась для этого заказа.','notice error');return;}
@@ -1520,8 +1525,9 @@ async function copySmsMessage(){
       if(ins.error)throw ins.error;line=ins.data;complete=true;
     }else{
       if(!t.start){msg('Этот шаблон не может начинать линию.','notice error');return;}
-      const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:'active',initial_stage:key,current_stage:key}).select('*').single();
-      if(ins.error)throw ins.error;line=ins.data;stageAfter=key;
+      const fromConfig=hasConfig&&['warehouse_pickup','dispatch','accepted'].includes(key);
+      const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:'active',initial_stage:fromConfig?'configuration':key,current_stage:fromConfig?'configuration':key,started_after_configuration:fromConfig}).select('*').single();
+      if(ins.error)throw ins.error;line=ins.data;stageBefore=fromConfig?'configuration':null;stageAfter=key;
     }
   }else{
     line=main;
@@ -1537,12 +1543,18 @@ async function copySmsMessage(){
   }
   if(main&&['configuration','review','thanks'].includes(key)&&!stageAfter)isAdditional=true;
   const text=$('smsPreview').textContent;
-  try{await navigator.clipboard.writeText(text);}catch(e){msg('Браузер не разрешил копирование. Проверь разрешение буфера обмена.','notice error');return;}
+  try{await navigator.clipboard.writeText(text);}catch(e){
+    if(line&&line.created_at&&line.created_at===line.last_action_at)await sb.from('sms_lines').delete().eq('id',line.id);
+    if(main&&stageAfter)await sb.from('sms_lines').update({current_stage:stageBefore,status:'active',completed_at:null}).eq('id',main.id);
+    msg('Браузер не разрешил копирование. Проверь разрешение буфера обмена.','notice error');return;
+  }
   const insMsg=await sb.from('sms_messages').insert({line_id:line.id,order_id:smsOrder.id,template_key:key,rendered_text:text,copied_by_employee_id:employee.id,is_additional:isAdditional,stage_before:stageBefore,stage_after:stageAfter}).select('id').single();
   if(insMsg.error){
-    await sb.from('sms_lines').delete().eq('id',line.id).eq('line_kind','standalone');
+    if(stageAfter&&stageBefore)await sb.from('sms_lines').update({current_stage:stageBefore,status:'active',completed_at:null}).eq('id',line.id);
+    else if(!main)await sb.from('sms_lines').delete().eq('id',line.id);
     msg('Текст скопирован, но не удалось сохранить историю: '+insMsg.error.message,'notice error');return;
   }
+  await sb.from('sms_lines').update({last_action_at:new Date().toISOString(),...(complete?{completed_by_employee_id:employee.id}:{})}).eq('id',line.id);
   await loadSmsLines();renderSmsOrder();msg('SMS скопировано и сохранено в истории.','notice success');
 }
 async function loadSmsLines(){
@@ -1550,6 +1562,44 @@ async function loadSmsLines(){
   const r=await sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),employees(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,employees(full_name))').eq('order_id',smsOrder.id).order('created_at',{ascending:false});
   if(r.error)throw r.error;smsLines=r.data||[];renderSmsLines();
 }
+
+async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind){
+  if(!confirm('Удалить ошибочное копирование из истории и отменить его влияние на линию?'))return;
+  try{
+    const del=await sb.from('sms_messages').delete().eq('id',messageId);if(del.error)throw del.error;
+    if(stageAfter){
+      if(!stageBefore){const d=await sb.from('sms_lines').delete().eq('id',lineId);if(d.error)throw d.error;}
+      else{const u=await sb.from('sms_lines').update({current_stage:stageBefore,status:'active',completed_at:null,completed_by_employee_id:null}).eq('id',lineId);if(u.error)throw u.error;}
+    }else if(lineKind==='standalone'){
+      const remain=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('line_id',lineId);
+      if(!remain.error&&remain.count===0)await sb.from('sms_lines').delete().eq('id',lineId);
+    }
+    await openSmsCustomer(smsCustomer.id,smsOrder.id);msg('Ошибочное копирование отменено.','notice success');
+  }catch(e){msg('Не удалось отменить копирование: '+e.message,'notice error');}
+}
+async function loadSmsLineBoards(){
+  const root=$('smsLineBoards');root.innerHTML='Загружаю линии…';
+  try{
+    let q=sb.from('sms_lines').select('id,order_id,line_kind,status,initial_stage,current_stage,last_action_at,store_id,created_by_employee_id,stores(name),employees(full_name),sms_orders(order_number,customer_id,sms_customers(full_name,phone))').order('last_action_at',{ascending:false}).limit(500);
+    if(profile?.role==='employee')q=q.eq('store_id',day.store_id);
+    const r=await q;if(r.error)throw r.error;const rows=r.data||[];
+    const mine=profile?.role==='employee'?rows.filter(x=>x.created_by_employee_id===employee.id&&x.status==='active'):rows.filter(x=>x.status==='active');
+    const active=rows.filter(x=>x.status==='active'),done=rows.filter(x=>x.status==='completed');
+    root.innerHTML='';
+    const addGroup=(title,list)=>{
+      const card=document.createElement('div');card.className='card';const h=document.createElement('h3');h.textContent=title+' ('+list.length+')';card.append(h);
+      if(!list.length){const p=document.createElement('p');p.className='muted';p.textContent='Нет линий.';card.append(p);}
+      list.forEach(x=>{
+        const b=document.createElement('button');b.className='section-button';const customer=x.sms_orders?.sms_customers;
+        const stage=smsTemplates[x.current_stage]?.name||smsTemplates[x.initial_stage]?.name||x.current_stage;
+        b.innerHTML='<span><strong>'+smsEsc(customer?.full_name||'Клиент')+' · Заказ №'+smsEsc(x.sms_orders?.order_number||'')+'</strong><small>'+smsEsc(stage||'Линия')+' · '+smsEsc(x.stores?.name||'')+' · '+smsAgo(x.last_action_at)+(profile?.role==='admin'?' · '+smsEsc(x.employees?.full_name||''):'')+'</small></span><span>Открыть</span>';
+        b.onclick=()=>openSmsCustomer(customer?.id,x.order_id);card.append(b);
+      });root.append(card);
+    };
+    addGroup('Мои текущие линии',mine);addGroup('Текущие линии магазина',active);addGroup('Завершённые линии',done);
+  }catch(e){root.textContent='Не удалось загрузить линии: '+e.message;}
+}
+
 async function loadSmsAdminStats(){
   const root=$('smsAdminStats');root.innerHTML='<h3>Статистика сообщений</h3>';
   const [daily,lifetime]=await Promise.all([
