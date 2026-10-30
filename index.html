@@ -1426,7 +1426,7 @@ async function searchSmsCustomers(){
   root.textContent='Поиск…';
   try{
     const [customers,orders]=await Promise.all([
-      digits.length>=5?sb.from('sms_customers').select('id,full_name,phone,primary_store_id,last_activity_at,stores:stores!sms_customers_primary_store_id_fkey(name)').ilike('phone_normalized','%'+digits+'%').limit(20):Promise.resolve({data:[],error:null}),
+      digits.length>=5?sb.from('sms_customers').select('id,full_name,phone,primary_store_id,last_activity_at').ilike('phone_normalized','%'+digits+'%').limit(20):Promise.resolve({data:[],error:null}),
       sb.from('sms_orders').select('id,order_number,customer_id').ilike('order_number','%'+term+'%').limit(20)
     ]);
     if(customers.error)throw customers.error;if(orders.error)throw orders.error;
