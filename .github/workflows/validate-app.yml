@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feature/customer-sms-v2
+      - main
   pull_request:
     branches:
       - main
