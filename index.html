@@ -72,9 +72,24 @@ th{background:var(--table-head)}
 .dashboard-stat span{font-size:13px;color:var(--muted)}
 .admin-record{padding:12px 0;border-bottom:1px solid var(--border)}
 textarea{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid var(--border);border-radius:10px;font:16px Arial;background:var(--surface);color:var(--text)}
-.sms-line{padding:14px 0;border-bottom:1px solid var(--border)}
-.sms-message{white-space:pre-wrap;background:var(--surface-soft);padding:12px;border-radius:10px;margin:10px 0;font-size:14px;line-height:1.5}
+.sms-line{padding:12px 0;border-bottom:1px solid var(--border)}
+.sms-message{white-space:pre-wrap;background:var(--surface-soft);padding:12px;border-radius:10px;margin:10px 0;font-size:14px;line-height:1.5;max-height: min(52vh,460px);overflow:auto}
 .sms-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:8px}
+.sms-order-card{padding:14px;margin-top:12px}
+.sms-order-meta{display:flex;gap:8px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin:-5px 0 12px}
+.sms-step-card{background:var(--surface-soft);border:1px solid var(--border);border-radius:12px;padding:12px;margin:10px 0}
+.sms-step-card label{font-size:13px;font-weight:700;color:var(--muted)}
+.sms-details{border:1px solid var(--border);border-radius:11px;margin:10px 0;overflow:hidden}
+.sms-details>summary{cursor:pointer;list-style:none;padding:12px 14px;background:var(--surface-soft);font-weight:700}
+.sms-details>summary::-webkit-details-marker{display:none}
+.sms-details>summary:after{content:"＋";float:right;color:var(--muted)}
+.sms-details[open]>summary:after{content:"−"}
+.sms-details-body{padding:10px 12px}
+.sms-history-line{padding:10px 0;border-bottom:1px solid var(--border)}
+.sms-history-line:last-child{border-bottom:0}
+.sms-copy-button{margin-top:8px}
+.sms-config-fields{padding:8px 0}
+@media(max-width:560px){.sms-order-card{padding:11px}.sms-message{max-height:55vh}.sms-copy-button{position:sticky;bottom:8px;z-index:2;box-shadow:0 3px 12px var(--shadow)}.sms-details>summary{padding:13px}}
 @media(max-width:560px){header{padding:18px 18px 70px}header h1{font-size:21px}.theme-toggle{left:18px;right:auto;top:auto;bottom:14px}.settings-toggle{right:18px;top:auto;bottom:14px}.settings-menu{right:12px;top:60px}main{padding:10px}.card{padding:14px}.nav button{font-size:13px;padding:11px 8px}}
 </style>
 </head>
@@ -1561,35 +1576,38 @@ function renderSmsOrder(){
   const recommendedOptions=recommended.map(k=>'<option value="'+k+'">'+smsEsc(smsTemplates[k].name)+'</option>').join('');
   const allOptions=Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('');
   const defaultKey=recommended[0]||'configuration';
-  const html='<div class="card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><p class="muted">Дата создания: '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</p><div class="sms-grid"><div><label>Следующий этап по последовательности</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+(recommendedOptions||'<option value="">Нет следующего этапа</option>')+'</select><button class="secondary" type="button" style="width:100%;margin-top:6px" onclick="toggleSmsOtherTemplates()">Другие шаблоны</button><div id="smsOtherTemplates" class="hidden"><label for="smsOtherTemplate">Выбрать другой шаблон</label><select id="smsOtherTemplate" onchange="selectSmsOtherTemplate()">'+allOptions+'</select></div></div><div id="smsConfigFields" class="hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><div id="smsPreview" class="sms-message"></div><button class="primary" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
+  const currentLine=smsLines.find(l=>l.line_kind==='main'&&l.status==='active');
+  const currentStage=currentLine?(smsTemplates[currentLine.current_stage]?.name||currentLine.current_stage):'Нет активной линии';
+  const html='<div class="card sms-order-card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><div class="sms-order-meta"><span>Создан '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</span><span>·</span><span>'+(currentLine?'Текущий этап: '+smsEsc(currentStage):'Можно начать новую линию')+'</span></div><div class="sms-step-card"><label for="smsTemplate">СЛЕДУЮЩЕЕ СООБЩЕНИЕ</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+(recommendedOptions||'<option value="configuration">Конфигурация</option>')+'</select><details class="sms-details" id="smsOtherTemplates"><summary>Другие шаблоны</summary><div class="sms-details-body"><label for="smsOtherTemplate">Выбрать шаблон</label><select id="smsOtherTemplate" onchange="selectSmsOtherTemplate()">'+allOptions+'</select></div></details><div id="smsConfigFields" class="sms-config-fields hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><details class="sms-details" id="smsPreviewDetails"><summary>Посмотреть текст сообщения</summary><div class="sms-details-body"><div id="smsPreview" class="sms-message"></div></div></details><button class="primary sms-copy-button" type="button" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
   root.insertAdjacentHTML('beforeend','<div id="smsOrderWork">'+html+'</div>');
-  if(recommended.length)$('smsTemplate').value=defaultKey;else $('smsTemplate').innerHTML='<option value="configuration">Конфигурация</option>';
+  if(recommended.length)$('smsTemplate').value=defaultKey;
   renderSmsLines();updateSmsTemplateFields();
 }
 function toggleSmsOtherTemplates(){
-  const panel=$('smsOtherTemplates');if(!panel)return;
-  panel.classList.toggle('hidden');
+  const panel=$('smsOtherTemplates');if(panel)panel.open=!panel.open;
 }
 function selectSmsOtherTemplate(){
   const key=$('smsOtherTemplate')?.value;if(!key)return;
   const primary=$('smsTemplate');
   if(![...primary.options].some(o=>o.value===key))primary.add(new Option(smsTemplates[key].name,key));
   primary.value=key;
-  $('smsOtherTemplates').classList.add('hidden');
+  $('smsOtherTemplates').open=false;
   updateSmsTemplateFields();
 }
 function renderSmsLines(){
-  const root=$('smsLineList');if(!root)return;root.innerHTML='<h3>Линии и история</h3>';
-  if(!smsLines.length){root.innerHTML+='<p class="muted">Для заказа пока нет линий. Первый шаблон создаст линию.</p>';return;}
+  const root=$('smsLineList');if(!root)return;
+  root.innerHTML='<details class="sms-details" id="smsHistoryDetails"><summary>История сообщений · '+smsLines.reduce((n,l)=>n+(l.sms_messages||[]).length,0)+'</summary><div class="sms-details-body" id="smsHistoryBody"></div></details>';
+  const body=$('smsHistoryBody');
+  if(!smsLines.length){body.innerHTML='<p class="muted">Для заказа пока нет линий. Первое сообщение создаст линию.</p>';return;}
   smsLines.forEach(l=>{
-    const d=document.createElement('div');d.className='sms-line';
+    const d=document.createElement('div');d.className='sms-history-line';
     const status=l.status==='completed'?'Завершена':'Текущая';
     d.innerHTML='<strong>'+(l.line_kind==='main'?'Основная линия':'Самостоятельная линия')+' · '+status+'</strong><div class="small">'+smsEsc(l.stores?.name||'Магазин')+' · Создал: '+smsEsc(l.creator?.full_name||'—')+' · '+smsAgo(l.last_action_at)+'</div>';
     (l.sms_messages||[]).sort((a,b)=>new Date(a.copied_at)-new Date(b.copied_at)).forEach(m=>{
       const p=document.createElement('div');p.className='small';p.textContent=smsTemplates[m.template_key]?.name+' · '+new Date(m.copied_at).toLocaleString('ru-RU')+' · скопировал: '+(m.employees?.full_name||'—')+(m.is_additional?' · дополнительное':'');d.append(p);
       if(profile?.role==='employee'&&m.copied_by_employee_id===employee.id){const undo=document.createElement('button');undo.className='danger';undo.style.marginTop='5px';undo.textContent='Отменить ошибочное копирование';undo.onclick=()=>cancelSmsMessage(m.id,l.id,m.stage_before,m.stage_after,l.line_kind,m.line_last_action_before,m.customer_last_activity_before,m.line_status_before,m.line_completed_at_before);d.append(undo);}
     });
-    root.append(d);
+    body.append(d);
   });
 }
 function updateSmsTemplateFields(){const key=$('smsTemplate')?.value;$('smsConfigFields')?.classList.toggle('hidden',key!=='configuration');previewSms();}
