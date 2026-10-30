@@ -1540,9 +1540,43 @@ async function selectSmsOrder(id){
     step='отрисовка заказа';renderSmsOrder();
   }catch(e){msg('Не удалось открыть заказ (этап: '+step+'): '+e.message,'notice error');}
 }
+function getSmsRecommendedTemplateKeys(){
+  const main=smsLines.find(x=>x.line_kind==='main');
+  if(main){
+    if(main.status==='completed')return [];
+    if(main.current_stage==='accepted')return ['warehouse_pickup','warehouse_delivery'];
+    if(['warehouse_pickup','warehouse_delivery','dispatch','cdek'].includes(main.current_stage))return ['review'];
+    return [];
+  }
+  const hasConfig=smsLines.some(x=>x.line_kind==='standalone'&&x.initial_stage==='configuration');
+  const hasTerminal=smsLines.some(x=>x.line_kind==='standalone'&&['review','thanks'].includes(x.initial_stage));
+  if(hasTerminal)return [];
+  if(hasConfig)return ['warehouse_pickup','dispatch','accepted'];
+  if(!smsLines.length)return ['accepted','warehouse_pickup','dispatch','configuration','review','thanks'];
+  return [];
+}
 function renderSmsOrder(){
-  const root=$('smsCustomerDetails');const old=$('smsOrderWork');if(old)old.remove();let html='<div class="card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><p class="muted">Дата создания: '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</p><div class="sms-grid"><div><label>Шаблон</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('')+'</select></div><div id="smsConfigFields" class="hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><div id="smsPreview" class="sms-message"></div><button class="primary" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
-  root.insertAdjacentHTML('beforeend','<div id="smsOrderWork">'+html+'</div>');renderSmsLines();updateSmsTemplateFields();
+  const root=$('smsCustomerDetails');const old=$('smsOrderWork');if(old)old.remove();
+  const recommended=getSmsRecommendedTemplateKeys();
+  const recommendedOptions=recommended.map(k=>'<option value="'+k+'">'+smsEsc(smsTemplates[k].name)+'</option>').join('');
+  const allOptions=Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('');
+  const defaultKey=recommended[0]||'configuration';
+  const html='<div class="card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><p class="muted">Дата создания: '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</p><div class="sms-grid"><div><label>Следующий этап по последовательности</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+(recommendedOptions||'<option value="">Нет следующего этапа</option>')+'</select><button class="secondary" type="button" style="width:100%;margin-top:6px" onclick="toggleSmsOtherTemplates()">Другие шаблоны</button><div id="smsOtherTemplates" class="hidden"><label for="smsOtherTemplate">Выбрать другой шаблон</label><select id="smsOtherTemplate" onchange="selectSmsOtherTemplate()">'+allOptions+'</select></div></div><div id="smsConfigFields" class="hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><div id="smsPreview" class="sms-message"></div><button class="primary" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
+  root.insertAdjacentHTML('beforeend','<div id="smsOrderWork">'+html+'</div>');
+  if(recommended.length)$('smsTemplate').value=defaultKey;else $('smsTemplate').innerHTML='<option value="configuration">Конфигурация</option>';
+  renderSmsLines();updateSmsTemplateFields();
+}
+function toggleSmsOtherTemplates(){
+  const panel=$('smsOtherTemplates');if(!panel)return;
+  panel.classList.toggle('hidden');
+}
+function selectSmsOtherTemplate(){
+  const key=$('smsOtherTemplate')?.value;if(!key)return;
+  const primary=$('smsTemplate');
+  if(![...primary.options].some(o=>o.value===key))primary.add(new Option(smsTemplates[key].name,key));
+  primary.value=key;
+  $('smsOtherTemplates').classList.add('hidden');
+  updateSmsTemplateFields();
 }
 function renderSmsLines(){
   const root=$('smsLineList');if(!root)return;root.innerHTML='<h3>Линии и история</h3>';
