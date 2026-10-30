@@ -126,6 +126,12 @@ body.sms-modal-open{overflow:hidden}
       <p class="settings-description">Напоминания о порядке приходят в 12:00 и 16:00 по местному времени магазина, пока рабочий день начат.</p>
       <button id="pushButton" class="secondary" type="button" onclick="togglePushNotifications()">Включить уведомления</button>
     </div>
+    <div id="roleSwitchArea" class="hidden">
+      <div class="settings-divider"></div>
+      <div class="settings-label">Рабочий режим</div>
+      <p class="settings-description">Одна учётная запись с двумя ролями. Переключение доступно только владельцу этой учётной записи.</p>
+      <button id="roleSwitchButton" class="secondary" type="button" onclick="switchAccountRole()">Переключить роль</button>
+    </div>
     <div id="logoutSettingsDivider" class="settings-divider"></div>
     <button id="logoutSettingsButton" class="danger" type="button" onclick="signOut()">Выйти</button>
   </div>
@@ -446,6 +452,32 @@ function showApp(){
   $('adminNav').classList.toggle('hidden',profile?.role!=='admin');
   $('smsNav').classList.toggle('hidden',profile?.role!=='admin'&&profile?.role!=='employee');
   $('notificationsSettings').classList.toggle('hidden',profile?.role!=='employee');
+  const canSwitch=user?.id==='57caa325-ad50-447b-9b23-df6ec1ee15dd'
+    &&profile?.employee_id==='18ef822b-09bd-435e-b9e6-6c72df1eb9e9';
+  $('roleSwitchArea').classList.toggle('hidden',!canSwitch);
+  if(canSwitch)$('roleSwitchButton').textContent=profile.role==='admin'
+    ?'Переключиться в режим сотрудника'
+    :'Переключиться в режим администратора';
+}
+
+async function switchAccountRole(){
+  if(user?.id!=='57caa325-ad50-447b-9b23-df6ec1ee15dd'
+    ||profile?.employee_id!=='18ef822b-09bd-435e-b9e6-6c72df1eb9e9')return;
+  const button=$('roleSwitchButton');
+  button.disabled=true;
+  try{
+    closeSettingsMenu();
+    const {data,error}=await sb.rpc('toggle_danil_account_role');
+    if(error)throw error;
+    if(!['admin','employee'].includes(data))throw new Error('Сервер вернул неизвестную роль.');
+    day=null;dayStore=null;progress={};employee=null;
+    await boot();
+    msg(data==='admin'?'Включён режим администратора.':'Включён режим сотрудника.','notice success');
+  }catch(err){
+    msg('Не удалось переключить роль: '+(err.message||err),'notice error');
+  }finally{
+    button.disabled=false;
+  }
 }
 
 $('loginForm').addEventListener('submit',async e=>{
@@ -494,6 +526,7 @@ async function boot(){
     profile=p.data;
     if(!['admin','employee'].includes(profile.role))throw new Error('У профиля неизвестная роль.');
 
+    day=null;dayStore=null;progress={};
     if(profile.role==='employee'){
       if(!profile.employee_id)throw new Error('У сотрудника не указан employee_id в profiles.');
       const e=await sb.from('employees')
