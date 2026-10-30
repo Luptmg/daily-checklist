@@ -200,7 +200,8 @@ textarea{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid va
     </section>
     <section id="smsPage" class="card hidden">
       <div class="row"><h2>Сообщения клиентам</h2><button class="secondary" type="button" onclick="loadSmsHome()">Обновить</button></div>
-      <div id="smsAdminStats" class="hidden"></div>
+      <div id="smsAdminControls" class="hidden"></div><div id="smsAdminStats" class="hidden"></div>
+      <div id="smsLineBoards"></div>
       <div class="card">
         <h2>Поиск клиента или заказа</h2>
         <input id="smsSearch" placeholder="Телефон клиента или номер заказа">
@@ -463,7 +464,7 @@ async function boot(){
     employee=null;
   }
 
-  const st=await sb.from('stores').select('id,name,city,timezone').order('name');
+  const st=await sb.from('stores').select('id,name,city,timezone,warehouse_address,warehouse_city,review_yandex_url,review_2gis_url,phone').order('name');
   if(st.error)throw st.error;
   stores=st.data||[];
   fillStoreSelects();
@@ -1013,7 +1014,7 @@ async function loadAdminDashboard(){
     if(!rows.length){root.textContent='На сегодня пока нет рабочих дней.';return;}
     rows.forEach(item=>{
       const line=document.createElement('div');line.className='admin-record';
-      const name=document.createElement('strong');name.textContent=item.employees?.full_name||'Сотрудник';
+      const name=document.createElement('strong');name.textContent=item.copier?.full_name||'Сотрудник';
       const meta=document.createElement('div');meta.className='small';
       const arrival=item.checked_in_at?new Date(item.checked_in_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'})+(item.arrival_status==='on_time'?' · вовремя':' · опоздание'):'Приход не отмечен';
       const p=getProgressStats(item.section_progress||[]);
@@ -1272,13 +1273,13 @@ $('passwordForm').addEventListener('submit',async e=>{
 
 
 const smsTemplates = {
-  configuration:{name:'Конфигурация',standalone:true,text:(d)=>`ИМЯ, добрый день! 😊
+  configuration:{name:'Конфигурация',standalone:true,text:(d)=>`${d.name}, добрый день! 😊
 
 Это ${d.employee}, ваш персональный менеджер MЕТТА.
 
 Как и договаривались, отправляю вам конфигурации кресел:
 📎  Конфигурация №1 — ${d.link1}
-${d.link2? '📎  Конфигурация №2 — '+d.link2+'\\n':''}
+${d.link2? '📎  Конфигурация №2 — '+d.link2+'\n':''}
 🖥️  Посмотрите модели в 3D по ссылкам — так вы сможете оценить эргономику со всех сторон.
 
 📄  Также направляю вам отдельным файлом информацию о нашей компании и преимуществах выбранных моделей.
@@ -1340,17 +1341,16 @@ ${d.address}
 
 ✅ Ваш заказ № ${d.order} принят в работу и передан на производство.
 
-⏳ Срок изготовления и доставки кресла до ${d.city} составляет до 14${d.isDanil?'':' рабочих'} дней.
+⏳ Срок изготовления и доставки кресла до ${d.cityGenitive} составляет до 14${d.isDanil?'':' рабочих'} дней.
 
 Как только кресло поступит на наш склад в ${d.city}, наш менеджер свяжется с вами для согласования удобных даты и времени получения
 
 🤝 Благодарим за доверие и выбор нашей компании! Если у вас появятся вопросы — мы на связи.
-${d.isDanil?'':'\\nВажно: при получении заказа при себе необходимо иметь бланк заказа и чек. Выдача товара без него невозможна.'}
 
 С наилучшими пожеланиями,
 команда МЕТТА
 📌 ТЦ «${d.store}»
-📞 ${d.phone}`},
+📞 ${d.phone}${d.isDanil?'':'\n\nВажно: при получении заказа при себе необходимо иметь бланк заказа и чек. Выдача товара без него невозможна.'}`},
   cdek:{name:'Принято СДЭК',start:true,text:(d)=>`Уважаемый ${d.name}!
 
 ✅ Ваш заказ № ${d.order} принят в работу и передан на производство.
@@ -1405,16 +1405,19 @@ async function showSms(){
   hidePages();$('smsPage').classList.remove('hidden');
   $('smsNav').classList.add('primary');$('smsNav').classList.remove('secondary');
   $('smsAdminStats').classList.toggle('hidden',profile?.role!=='admin');
+  $('smsAdminControls').classList.toggle('hidden',profile?.role!=='admin');
   if(profile?.role==='admin'&&!$('smsAdminStore')){
-    const s=document.createElement('select');s.id='smsAdminStore';s.innerHTML='<option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('');
-    $('smsAdminStats').append(s);
+    const controls=$('smsAdminControls');
+    controls.innerHTML='<div class="sms-grid"><div><label>Магазин</label><select id="smsAdminStore"><option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('')+'</select></div><div><label>Сотрудник</label><select id="smsAdminEmployee"><option value="">Все сотрудники</option></select></div><div><label>С даты</label><input id="smsStatFrom" type="date"></div><div><label>По дату</label><input id="smsStatTo" type="date"></div></div><button class="secondary" onclick="loadSmsAdminStats();loadSmsLineBoards()">Применить фильтры</button>';
+    const er=await sb.from('employees').select('id,full_name').eq('active',true).order('full_name');
+    if(!er.error)er.data.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.full_name;$('smsAdminEmployee').append(o);});
   }
   await loadSmsHome();
 }
 async function loadSmsHome(){
-  if(profile?.role==='admin'){await loadSmsAdminStats();return;}
+  if(profile?.role==='admin'){await loadSmsAdminStats();await loadSmsLineBoards();return;}
   if(!day?.store_id){$('smsCustomerDetails').innerHTML='<p class="notice">Сначала начни рабочий день и выбери магазин.</p>';return;}
-  await loadSmsLines();
+  await loadSmsLineBoards();
 }
 async function searchSmsCustomers(){
   const term=$('smsSearch').value.trim(),digits=smsNormalizePhone(term),root=$('smsSearchResults');
@@ -1443,13 +1446,16 @@ async function createSmsCustomerOrder(){
   if(!name||!phone||!order){msg('Заполни имя, телефон и номер заказа.','notice error');return;}
   if(digits.length<7){msg('Проверь номер телефона.','notice error');return;}
   try{
+    const duplicateOrder=await sb.from('sms_orders').select('id').eq('order_number',order).maybeSingle();
+    if(duplicateOrder.error)throw duplicateOrder.error;
+    if(duplicateOrder.data){msg('Номер заказа уже существует. Найди его через поиск и открой существующую карточку.','notice error');return;}
     const found=await sb.from('sms_customers').select('id,full_name,phone').eq('phone_normalized',digits).maybeSingle();
     if(found.error)throw found.error;
     if(found.data){msg('Клиент с таким телефоном уже существует. Открой его через поиск и добавь заказ.','notice error');await openSmsCustomer(found.data.id);return;}
     const c=await sb.from('sms_customers').insert({full_name:name,phone,phone_normalized:digits,comment:$('smsNewComment').value.trim()||null,primary_store_id:day.store_id,created_by_employee_id:employee.id}).select('id').single();
     if(c.error)throw c.error;
     const o=await sb.from('sms_orders').insert({customer_id:c.data.id,order_number:order}).select('id').single();
-    if(o.error)throw o.error;
+    if(o.error){await sb.from('sms_customers').delete().eq('id',c.data.id);throw o.error;}
     ['smsNewName','smsNewPhone','smsNewOrder','smsNewComment'].forEach(id=>$(id).value='');
     await openSmsCustomer(c.data.id,o.data.id);
     msg('Клиент и заказ созданы. Теперь выбери первый шаблон.','notice success');
@@ -1478,14 +1484,14 @@ async function addSmsOrder(){
 async function selectSmsOrder(id){
   const r=await sb.from('sms_orders').select('id,order_number,created_at').eq('id',id).single();if(r.error)throw r.error;smsOrder=r.data;
   const storeId=profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id;
-  const lineQuery=sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),employees(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,employees(full_name))').eq('order_id',id).order('created_at',{ascending:false});
+  const lineQuery=sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,copier:employees!sms_messages_copied_by_employee_id_fkey(full_name))').eq('order_id',id).order('created_at',{ascending:false});
   if(storeId)lineQuery.eq('store_id',storeId);
   const l=await lineQuery;if(l.error)throw l.error;smsLines=l.data||[];
   renderSmsOrder();
 }
 function renderSmsOrder(){
-  const root=$('smsCustomerDetails');let html='<div class="card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><p class="muted">Дата создания: '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</p><div class="sms-grid"><div><label>Шаблон</label><select id="smsTemplate" onchange="previewSms()">'+Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('')+'</select></div><div><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..."></div><div><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..."></div></div><div id="smsPreview" class="sms-message"></div><button class="primary" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
-  root.insertAdjacentHTML('beforeend',html);renderSmsLines();previewSms();
+  const root=$('smsCustomerDetails');const old=$('smsOrderWork');if(old)old.remove();let html='<div class="card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><p class="muted">Дата создания: '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</p><div class="sms-grid"><div><label>Шаблон</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('')+'</select></div><div id="smsConfigFields" class="hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><div id="smsPreview" class="sms-message"></div><button class="primary" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
+  root.insertAdjacentHTML('beforeend','<div id="smsOrderWork">'+html+'</div>');renderSmsLines();updateSmsTemplateFields();
 }
 function renderSmsLines(){
   const root=$('smsLineList');if(!root)return;root.innerHTML='<h3>Линии и история</h3>';
@@ -1493,26 +1499,34 @@ function renderSmsLines(){
   smsLines.forEach(l=>{
     const d=document.createElement('div');d.className='sms-line';
     const status=l.status==='completed'?'Завершена':'Текущая';
-    d.innerHTML='<strong>'+(l.line_kind==='main'?'Основная линия':'Самостоятельная линия')+' · '+status+'</strong><div class="small">'+smsEsc(l.stores?.name||'Магазин')+' · Создал: '+smsEsc(l.employees?.full_name||'—')+' · '+smsAgo(l.last_action_at)+'</div>';
-    (l.sms_messages||[]).sort((a,b)=>new Date(a.copied_at)-new Date(b.copied_at)).forEach(m=>{const p=document.createElement('div');p.className='small';p.textContent=smsTemplates[m.template_key]?.name+' · '+new Date(m.copied_at).toLocaleString('ru-RU')+' · скопировал: '+(m.employees?.full_name||'—');d.append(p);});
+    d.innerHTML='<strong>'+(l.line_kind==='main'?'Основная линия':'Самостоятельная линия')+' · '+status+'</strong><div class="small">'+smsEsc(l.stores?.name||'Магазин')+' · Создал: '+smsEsc(l.creator?.full_name||'—')+' · '+smsAgo(l.last_action_at)+'</div>';
+    (l.sms_messages||[]).sort((a,b)=>new Date(a.copied_at)-new Date(b.copied_at)).forEach(m=>{
+      const p=document.createElement('div');p.className='small';p.textContent=smsTemplates[m.template_key]?.name+' · '+new Date(m.copied_at).toLocaleString('ru-RU')+' · скопировал: '+(m.employees?.full_name||'—')+(m.is_additional?' · дополнительное':'');d.append(p);
+      if(profile?.role==='employee'&&m.copied_by_employee_id===employee.id){const undo=document.createElement('button');undo.className='danger';undo.style.marginTop='5px';undo.textContent='Отменить ошибочное копирование';undo.onclick=()=>cancelSmsMessage(m.id,l.id,m.stage_before,m.stage_after,l.line_kind,m.line_last_action_before,m.customer_last_activity_before,m.line_status_before,m.line_completed_at_before);d.append(undo);}
+    });
     root.append(d);
   });
 }
+function updateSmsTemplateFields(){const key=$('smsTemplate')?.value;$('smsConfigFields')?.classList.toggle('hidden',key!=='configuration');previewSms();}
 function previewSms(){
   if(!smsOrder||!smsCustomer)return;
   const key=$('smsTemplate').value,t=smsTemplates[key],store=stores.find(s=>s.id===(profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id))||stores.find(s=>s.id===smsCustomer.primary_store_id);
-  const data={name:smsCustomer.full_name,employee:employee?.full_name||'сотрудник',store:store?.name||'Магазин',phone:store?.phone||'+7 (919) 381-77-25',address:store?.warehouse_address||'АДРЕС СКЛАДА',city:store?.warehouse_city||store?.city||'Екатеринбурге',order:smsOrder.order_number,isDanil:employee?.full_name==='Лаптев Данил',link1:$('smsLink1')?.value||'ССЫЛКА 1',link2:$('smsLink2')?.value||'',yandex:store?.review_yandex_url||'',gis:store?.review_2gis_url||''};
+  const data={name:smsCustomer.full_name,employee:employee?.full_name||'сотрудник',store:store?.name||'Магазин',phone:store?.phone||'+7 (919) 381-77-25',address:store?.warehouse_address||'АДРЕС СКЛАДА',city:(store?.warehouse_city==='Краснодар'?'Краснодаре':store?.warehouse_city==='Екатеринбург'?'Екатеринбурге':store?.warehouse_city||'Екатеринбурге'),cityGenitive:(store?.warehouse_city==='Краснодар'?'Краснодара':store?.warehouse_city==='Екатеринбург'?'Екатеринбурга':store?.warehouse_city||'Екатеринбурга'),order:smsOrder.order_number,isDanil:employee?.full_name==='Лаптев Данил',link1:$('smsLink1')?.value||'ССЫЛКА 1',link2:$('smsLink2')?.value||'',yandex:store?.review_yandex_url||'',gis:store?.review_2gis_url||''};
   $('smsPreview').textContent=t.text(data);
 }
 async function copySmsMessage(){
   if(profile?.role!=='employee'||!employee||!day?.store_id){msg('Копировать сообщения может сотрудник с активным рабочим днём.','notice error');return;}
   const key=$('smsTemplate').value,t=smsTemplates[key],store=stores.find(s=>s.id===day.store_id);
+  if(key==='configuration'&&!$('smsLink1').value.trim()){msg('Для шаблона «Конфигурация» нужна ссылка на конфигурацию №1.','notice error');return;}
   const {data:existing,error}=await sb.from('sms_lines').select('*').eq('order_id',smsOrder.id);
   if(error){msg(error.message,'notice error');return;}
   const main=existing.find(x=>x.line_kind==='main');
   const standalone=existing.find(x=>x.line_kind==='standalone'&&x.initial_stage===key);
   let line=null,isAdditional=false,stageBefore=null,stageAfter=null,complete=false;
   if(!main){
+    const hasConfig=existing.some(x=>x.line_kind==='standalone'&&x.initial_stage==='configuration');
+    if(existing.some(x=>x.line_kind==='standalone'&&['review','thanks'].includes(x.initial_stage))){msg('Этот заказ уже завершён самостоятельным сообщением «Отзыв» или «Благодарность». Новую основную линию запустить нельзя.','notice error');return;}
+    if(hasConfig&&key==='cdek'){msg('После конфигурации основную линию можно начать с «На складе самовывоз», «Доставка со склада» или «Принято».','notice error');return;}
     if(key==='warehouse_delivery'){msg('Шаблон «На складе доставка» доступен только после «Принято».','notice error');return;}
     if(['configuration','review','thanks'].includes(key)){
       if(key==='configuration'&&standalone){msg('Конфигурация уже создавалась для этого заказа.','notice error');return;}
@@ -1520,8 +1534,9 @@ async function copySmsMessage(){
       if(ins.error)throw ins.error;line=ins.data;complete=true;
     }else{
       if(!t.start){msg('Этот шаблон не может начинать линию.','notice error');return;}
-      const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:'active',initial_stage:key,current_stage:key}).select('*').single();
-      if(ins.error)throw ins.error;line=ins.data;stageAfter=key;
+      const fromConfig=hasConfig&&['warehouse_pickup','dispatch','accepted'].includes(key);
+      const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:'active',initial_stage:fromConfig?'configuration':key,current_stage:key,started_after_configuration:fromConfig}).select('*').single();
+      if(ins.error)throw ins.error;line=ins.data;stageBefore=fromConfig?'configuration':null;stageAfter=key;
     }
   }else{
     line=main;
@@ -1530,19 +1545,26 @@ async function copySmsMessage(){
     else if(main.current_stage==='accepted'&&['warehouse_pickup','warehouse_delivery'].includes(key)){stageBefore='accepted';stageAfter=key;}
     else if(['warehouse_pickup','warehouse_delivery','dispatch','cdek'].includes(main.current_stage)&&key==='review'){stageBefore=main.current_stage;stageAfter='review';complete=true;}
     else {isAdditional=true;}
-    if(stageAfter){
-      const up=await sb.from('sms_lines').update({current_stage:stageAfter,status:complete?'completed':'active',completed_at:complete?new Date().toISOString():null,last_action_at:new Date().toISOString()}).eq('id',main.id);
-      if(up.error)throw up.error;
-    }
   }
   if(main&&['configuration','review','thanks'].includes(key)&&!stageAfter)isAdditional=true;
   const text=$('smsPreview').textContent;
-  try{await navigator.clipboard.writeText(text);}catch(e){msg('Браузер не разрешил копирование. Проверь разрешение буфера обмена.','notice error');return;}
-  const insMsg=await sb.from('sms_messages').insert({line_id:line.id,order_id:smsOrder.id,template_key:key,rendered_text:text,copied_by_employee_id:employee.id,is_additional:isAdditional,stage_before:stageBefore,stage_after:stageAfter}).select('id').single();
+  const customerActivityBefore=smsCustomer.last_activity_at;
+  try{await navigator.clipboard.writeText(text);}catch(e){
+    if(!main&&line)await sb.from('sms_lines').delete().eq('id',line.id);
+    if(customerActivityBefore)await sb.from('sms_customers').update({last_activity_at:customerActivityBefore}).eq('id',smsCustomer.id);
+    msg('Браузер не разрешил копирование. Проверь разрешение буфера обмена.','notice error');return;
+  }
+  const insMsg=await sb.from('sms_messages').insert({line_id:line.id,order_id:smsOrder.id,template_key:key,rendered_text:text,copied_by_employee_id:employee.id,is_additional:isAdditional,stage_before:stageBefore,stage_after:stageAfter,line_last_action_before:main?.last_action_at||null,customer_last_activity_before:customerActivityBefore,line_status_before:main?.status||null,line_completed_at_before:main?.completed_at||null}).select('id').single();
   if(insMsg.error){
-    await sb.from('sms_lines').delete().eq('id',line.id).eq('line_kind','standalone');
+    if(!main)await sb.from('sms_lines').delete().eq('id',line.id);
+    if(customerActivityBefore)await sb.from('sms_customers').update({last_activity_at:customerActivityBefore}).eq('id',smsCustomer.id);
     msg('Текст скопирован, но не удалось сохранить историю: '+insMsg.error.message,'notice error');return;
   }
+  const lineUpdate={last_action_at:new Date().toISOString()};
+  if(stageAfter){lineUpdate.current_stage=stageAfter;lineUpdate.status=complete?'completed':'active';lineUpdate.completed_at=complete?new Date().toISOString():null;lineUpdate.completed_by_employee_id=complete?employee.id:null;}
+  const lineSaved=await sb.from('sms_lines').update(lineUpdate).eq('id',line.id);
+  if(lineSaved.error){await sb.from('sms_messages').delete().eq('id',insMsg.data.id);if(!main)await sb.from('sms_lines').delete().eq('id',line.id);if(customerActivityBefore)await sb.from('sms_customers').update({last_activity_at:customerActivityBefore}).eq('id',smsCustomer.id);msg('SMS скопировано, но запись не удалось завершить. Повтори действие. '+lineSaved.error.message,'notice error');return;}
+  smsCustomer.last_activity_at=new Date().toISOString();
   await loadSmsLines();renderSmsOrder();msg('SMS скопировано и сохранено в истории.','notice success');
 }
 async function loadSmsLines(){
@@ -1550,22 +1572,76 @@ async function loadSmsLines(){
   const r=await sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),employees(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,employees(full_name))').eq('order_id',smsOrder.id).order('created_at',{ascending:false});
   if(r.error)throw r.error;smsLines=r.data||[];renderSmsLines();
 }
+
+async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind,lineLastBefore,customerLastBefore,lineStatusBefore,lineCompletedBefore){
+  if(!confirm('Удалить ошибочное копирование из истории и отменить его влияние на линию?'))return;
+  try{
+    const current=await sb.from('sms_messages').select('id,copied_at').eq('id',messageId).single();if(current.error)throw current.error;
+    const newer=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('order_id',smsOrder.id).gt('copied_at',current.data.copied_at);
+    if(newer.error)throw newer.error;
+    if(newer.count>0){msg('Можно отменить только последнее копирование в заказе.','notice error');return;}
+    const freshCustomer=await sb.from('sms_customers').select('last_activity_at').eq('id',smsCustomer.id).single();
+    if(freshCustomer.error)throw freshCustomer.error;
+    if(customerLastBefore&&freshCustomer.data.last_activity_at&&new Date(freshCustomer.data.last_activity_at)-new Date(current.data.copied_at)>5000){msg('После этого копирования были другие действия с клиентом. Отмена старого действия не разрешена.','notice error');return;}
+    const del=await sb.from('sms_messages').delete().eq('id',messageId);if(del.error)throw del.error;
+    if(stageAfter&&(!stageBefore||!lineStatusBefore)){const d=await sb.from('sms_lines').delete().eq('id',lineId);if(d.error)throw d.error;}
+    else{
+      const patch={last_action_at:lineLastBefore||new Date().toISOString()};
+      if(stageAfter){patch.current_stage=stageBefore;patch.status=lineStatusBefore||'active';patch.completed_at=lineCompletedBefore||null;patch.completed_by_employee_id=null;}
+      const u=await sb.from('sms_lines').update(patch).eq('id',lineId);if(u.error)throw u.error;
+      if(lineKind==='standalone'){
+        const remain=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('line_id',lineId);
+        if(!remain.error&&remain.count===0){const d=await sb.from('sms_lines').delete().eq('id',lineId);if(d.error)throw d.error;}
+      }
+    }
+    if(customerLastBefore)await sb.from('sms_customers').update({last_activity_at:customerLastBefore}).eq('id',smsCustomer.id);
+    smsCustomer.last_activity_at=customerLastBefore||smsCustomer.last_activity_at;
+    await openSmsCustomer(smsCustomer.id,smsOrder.id);msg('Ошибочное копирование отменено.','notice success');
+  }catch(e){msg('Не удалось отменить копирование: '+e.message,'notice error');}
+}
+async function loadSmsLineBoards(){
+  const root=$('smsLineBoards');root.innerHTML='Загружаю линии…';
+  try{
+    let q=sb.from('sms_lines').select('id,order_id,line_kind,status,initial_stage,current_stage,last_action_at,store_id,created_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_orders(order_number,customer_id,sms_customers(full_name,phone))').order('last_action_at',{ascending:false}).limit(500);
+    if(profile?.role==='employee')q=q.eq('store_id',day.store_id);else {if($('smsAdminStore')?.value)q=q.eq('store_id',$('smsAdminStore').value);if($('smsAdminEmployee')?.value)q=q.eq('created_by_employee_id',$('smsAdminEmployee').value);}
+    const r=await q;if(r.error)throw r.error;const rows=r.data||[];
+    const mine=profile?.role==='employee'?rows.filter(x=>x.created_by_employee_id===employee.id&&x.status==='active'):rows.filter(x=>x.status==='active');
+    const active=rows.filter(x=>x.status==='active'),done=rows.filter(x=>x.status==='completed');
+    root.innerHTML='';
+    const addGroup=(title,list)=>{
+      const card=document.createElement('div');card.className='card';const h=document.createElement('h3');h.textContent=title+' ('+list.length+')';card.append(h);
+      if(!list.length){const p=document.createElement('p');p.className='muted';p.textContent='Нет линий.';card.append(p);}
+      list.forEach(x=>{
+        const b=document.createElement('button');b.className='section-button';const customer=x.sms_orders?.sms_customers;
+        const stage=(x.initial_stage==='configuration'&&x.current_stage!=='configuration'?'Конфигурация → ':'')+(smsTemplates[x.current_stage]?.name||smsTemplates[x.initial_stage]?.name||x.current_stage);
+        b.innerHTML='<span><strong>'+smsEsc(customer?.full_name||'Клиент')+' · Заказ №'+smsEsc(x.sms_orders?.order_number||'')+'</strong><small>'+smsEsc(stage||'Линия')+' · '+smsEsc(x.stores?.name||'')+' · '+smsAgo(x.last_action_at)+(profile?.role==='admin'?' · '+smsEsc(x.creator?.full_name||''):'')+'</small></span><span>Открыть</span>';
+        b.onclick=()=>openSmsCustomer(customer?.id,x.order_id);card.append(b);
+      });root.append(card);
+    };
+    if(profile?.role==='employee'){addGroup('Мои текущие линии',mine);addGroup('Текущие линии магазина',active);}else{addGroup('Текущие линии',active);}
+    addGroup('Завершённые линии',done);
+  }catch(e){root.textContent='Не удалось загрузить линии: '+e.message;}
+}
+
 async function loadSmsAdminStats(){
   const root=$('smsAdminStats');root.innerHTML='<h3>Статистика сообщений</h3>';
-  const [daily,lifetime]=await Promise.all([
-    sb.from('sms_employee_store_daily_stats').select('employee_id,store_id,stat_date,copied_messages,completed_lines,employees(full_name),stores(name)').order('stat_date',{ascending:false}).limit(500),
-    sb.from('sms_employee_store_lifetime_stats').select('employee_id,store_id,copied_messages,completed_lines,employees(full_name),stores(name)').order('copied_messages',{ascending:false})
-  ]);
+  const store=$('smsAdminStore')?.value||'',emp=$('smsAdminEmployee')?.value||'',from=$('smsStatFrom')?.value||'',to=$('smsStatTo')?.value||'';
+  let dq=sb.from('sms_employee_store_daily_stats').select('employee_id,store_id,stat_date,copied_messages,completed_lines,employees(full_name),stores(name)').order('stat_date',{ascending:false}).limit(5000);
+  let lq=sb.from('sms_employee_store_lifetime_stats').select('employee_id,store_id,copied_messages,completed_lines,employees(full_name),stores(name)').order('copied_messages',{ascending:false});
+  if(store){dq=dq.eq('store_id',store);lq=lq.eq('store_id',store);}
+  if(emp){dq=dq.eq('employee_id',emp);lq=lq.eq('employee_id',emp);}
+  if(from)dq=dq.gte('stat_date',from);
+  if(to)dq=dq.lte('stat_date',to);
+  const [daily,lifetime]=await Promise.all([dq,lq]);
   if(daily.error)throw daily.error;if(lifetime.error)throw lifetime.error;
-  const store=$('smsAdminStore')?.value;
-  const filter=x=>!store||x.store_id===store;
+  const rows=daily.data||[],lifeRows=lifetime.data||[];
+  const total=rows.reduce((a,x)=>a+x.copied_messages,0),completed=rows.reduce((a,x)=>a+x.completed_lines,0);
+  const life=lifeRows.reduce((a,x)=>a+Number(x.copied_messages),0),lifeCompleted=lifeRows.reduce((a,x)=>a+Number(x.completed_lines),0);
   const wrap=document.createElement('div');wrap.className='sms-grid';
-  const total=(daily.data||[]).filter(filter).reduce((a,x)=>a+x.copied_messages,0);
-  const life=(lifetime.data||[]).filter(filter).reduce((a,x)=>a+Number(x.copied_messages),0);
-  wrap.innerHTML='<div class="dashboard-stat"><strong>'+total+'</strong><span>Скопировано по дням в доступной истории</span></div><div class="dashboard-stat"><strong>'+life+'</strong><span>Скопировано за всё время</span></div>';
+  wrap.innerHTML='<div class="dashboard-stat"><strong>'+total+'</strong><span>Скопировано за выбранный период</span></div><div class="dashboard-stat"><strong>'+completed+'</strong><span>Завершено линий за период</span></div><div class="dashboard-stat"><strong>'+life+'</strong><span>Скопировано за всё время</span></div><div class="dashboard-stat"><strong>'+lifeCompleted+'</strong><span>Завершено линий за всё время</span></div>';
   root.append(wrap);
-  (lifetime.data||[]).filter(filter).forEach(x=>{const p=document.createElement('p');p.className='small';p.textContent=(x.employees?.full_name||'Сотрудник')+' · '+(x.stores?.name||'Магазин')+' · за всё время: '+x.copied_messages;root.append(p);});
-  $('smsCustomerDetails').innerHTML='<p class="muted">Администратор может просматривать статистику. Для поиска клиентов выбери магазин в фильтре или используй поиск.</p>';
+  const h=document.createElement('h3');h.textContent='По сотрудникам за всё время';root.append(h);
+  lifeRows.forEach(x=>{const p=document.createElement('p');p.className='small';p.textContent=(x.employees?.full_name||'Сотрудник')+' · '+(x.stores?.name||'Магазин')+' · SMS: '+x.copied_messages+' · завершено линий: '+x.completed_lines;root.append(p);});
 }
 
 if(!configured){
