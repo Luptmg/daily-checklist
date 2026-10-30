@@ -1023,35 +1023,7 @@ async function loadAdminHistory(){
 
 
 
-async function editArrivalTime(item){
-  if(profile?.role!=='admin')return;
 
-  const current=item.checked_in_at
-    ?new Date(item.checked_in_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit',hour12:false})
-    :'09:45';
-
-  const value=prompt('Укажи новое время прихода в формате ЧЧ:ММ (например, 09:45):',current);
-  if(value===null)return;
-
-  const time=value.trim();
-  if(!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)){
-    msg('Неверный формат времени. Введи ЧЧ:ММ, например 09:45.','notice error');
-    return;
-  }
-
-  try{
-    const {error}=await sb.rpc('admin_update_workday_arrival',{
-      p_workday_id:item.id,
-      p_arrival_time:time
-    });
-    if(error)throw error;
-
-    msg('Время прихода изменено.','notice success');
-    await loadAdmin();
-  }catch(err){
-    msg('Не удалось изменить время: '+(err.message||err),'notice error');
-  }
-}
 
 
 
