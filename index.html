@@ -1279,7 +1279,7 @@ const smsTemplates = {
 
 Как и договаривались, отправляю вам конфигурации кресел:
 📎  Конфигурация №1 — ${d.link1}
-${d.link2? '📎  Конфигурация №2 — '+d.link2+'\\n':''}
+${d.link2? '📎  Конфигурация №2 — '+d.link2+'\n':''}
 🖥️  Посмотрите модели в 3D по ссылкам — так вы сможете оценить эргономику со всех сторон.
 
 📄  Также направляю вам отдельным файлом информацию о нашей компании и преимуществах выбранных моделей.
@@ -1341,7 +1341,7 @@ ${d.address}
 
 ✅ Ваш заказ № ${d.order} принят в работу и передан на производство.
 
-⏳ Срок изготовления и доставки кресла до ${d.city} составляет до 14${d.isDanil?'':' рабочих'} дней.
+⏳ Срок изготовления и доставки кресла до ${d.cityGenitive} составляет до 14${d.isDanil?'':' рабочих'} дней.
 
 Как только кресло поступит на наш склад в ${d.city}, наш менеджер свяжется с вами для согласования удобных даты и времени получения
 
@@ -1351,7 +1351,7 @@ ${d.isDanil?'':'\\nВажно: при получении заказа при с�
 С наилучшими пожеланиями,
 команда МЕТТА
 📌 ТЦ «${d.store}»
-📞 ${d.phone}`},
+📞 ${d.phone}${d.isDanil?'':'\n\nВажно: при получении заказа при себе необходимо иметь бланк заказа и чек. Выдача товара без него невозможна.'}`},
   cdek:{name:'Принято СДЭК',start:true,text:(d)=>`Уважаемый ${d.name}!
 
 ✅ Ваш заказ № ${d.order} принят в работу и передан на производство.
@@ -1505,7 +1505,7 @@ function renderSmsLines(){
 function previewSms(){
   if(!smsOrder||!smsCustomer)return;
   const key=$('smsTemplate').value,t=smsTemplates[key],store=stores.find(s=>s.id===(profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id))||stores.find(s=>s.id===smsCustomer.primary_store_id);
-  const data={name:smsCustomer.full_name,employee:employee?.full_name||'сотрудник',store:store?.name||'Магазин',phone:store?.phone||'+7 (919) 381-77-25',address:store?.warehouse_address||'АДРЕС СКЛАДА',city:(store?.warehouse_city==='Краснодар'?'Краснодаре':store?.warehouse_city==='Екатеринбург'?'Екатеринбурге':store?.warehouse_city||'Екатеринбурге'),order:smsOrder.order_number,isDanil:employee?.full_name==='Лаптев Данил',link1:$('smsLink1')?.value||'ССЫЛКА 1',link2:$('smsLink2')?.value||'',yandex:store?.review_yandex_url||'',gis:store?.review_2gis_url||''};
+  const data={name:smsCustomer.full_name,employee:employee?.full_name||'сотрудник',store:store?.name||'Магазин',phone:store?.phone||'+7 (919) 381-77-25',address:store?.warehouse_address||'АДРЕС СКЛАДА',city:(store?.warehouse_city==='Краснодар'?'Краснодаре':store?.warehouse_city==='Екатеринбург'?'Екатеринбурге':store?.warehouse_city||'Екатеринбурге'),cityGenitive:(store?.warehouse_city==='Краснодар'?'Краснодара':store?.warehouse_city==='Екатеринбург'?'Екатеринбурга':store?.warehouse_city||'Екатеринбурга'),order:smsOrder.order_number,isDanil:employee?.full_name==='Лаптев Данил',link1:$('smsLink1')?.value||'ССЫЛКА 1',link2:$('smsLink2')?.value||'',yandex:store?.review_yandex_url||'',gis:store?.review_2gis_url||''};
   $('smsPreview').textContent=t.text(data);
 }
 async function copySmsMessage(){
@@ -1538,7 +1538,7 @@ async function copySmsMessage(){
     else if(['warehouse_pickup','warehouse_delivery','dispatch','cdek'].includes(main.current_stage)&&key==='review'){stageBefore=main.current_stage;stageAfter='review';complete=true;}
     else {isAdditional=true;}
     if(stageAfter){
-      const up=await sb.from('sms_lines').update({current_stage:stageAfter,status:complete?'completed':'active',completed_at:complete?new Date().toISOString():null,last_action_at:new Date().toISOString()}).eq('id',main.id);
+      const up=await sb.from('sms_lines').update({current_stage:stageAfter,status:complete?'completed':'active',completed_at:complete?new Date().toISOString():null,completed_by_employee_id:complete?employee.id:null,last_action_at:new Date().toISOString()}).eq('id',main.id);
       if(up.error)throw up.error;
     }
   }
