@@ -1578,7 +1578,7 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
     if(newer.error)throw newer.error;
     if(newer.count>0){msg('Можно отменить только последнее копирование в заказе.','notice error');return;}
     const del=await sb.from('sms_messages').delete().eq('id',messageId);if(del.error)throw del.error;
-    if(stageAfter&&!stageBefore){const d=await sb.from('sms_lines').delete().eq('id',lineId);if(d.error)throw d.error;}
+    if(stageAfter&&(!stageBefore||!lineStatusBefore)){const d=await sb.from('sms_lines').delete().eq('id',lineId);if(d.error)throw d.error;}
     else{
       const patch={last_action_at:lineLastBefore||new Date().toISOString()};
       if(stageAfter){patch.current_stage=stageBefore;patch.status=lineStatusBefore||'active';patch.completed_at=lineCompletedBefore||null;patch.completed_by_employee_id=null;}
