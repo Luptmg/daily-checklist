@@ -479,7 +479,13 @@ function fillStoreSelects(){
     he.innerHTML='<option value="">Все сотрудники</option>';
     sb.from('employees').select('id,full_name').eq('active',true).order('full_name').then(({data,error})=>{
       if(error){console.error(error);return;}
+      // boot() may run more than once during session initialization; rebuild options
+      // when each async response arrives instead of appending duplicate lists.
+      he.innerHTML='<option value="">Все сотрудники</option>';
+      const seen=new Set();
       (data||[]).forEach(emp=>{
+        if(seen.has(emp.id))return;
+        seen.add(emp.id);
         const o=document.createElement('option');o.value=emp.id;o.textContent=emp.full_name;he.append(o);
       });
     });
