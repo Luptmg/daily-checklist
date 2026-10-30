@@ -464,7 +464,7 @@ async function boot(){
     employee=null;
   }
 
-  const st=await sb.from('stores').select('id,name,city,timezone').order('name');
+  const st=await sb.from('stores').select('id,name,city,timezone,warehouse_address,warehouse_city,review_yandex_url,review_2gis_url,phone').order('name');
   if(st.error)throw st.error;
   stores=st.data||[];
   fillStoreSelects();
@@ -1518,6 +1518,7 @@ async function copySmsMessage(){
   let line=null,isAdditional=false,stageBefore=null,stageAfter=null,complete=false;
   if(!main){
     const hasConfig=existing.some(x=>x.line_kind==='standalone'&&x.initial_stage==='configuration');
+    if(hasConfig&&key==='cdek'){msg('После конфигурации основную линию можно начать с «На складе самовывоз», «Доставка со склада» или «Принято».','notice error');return;}
     if(key==='warehouse_delivery'){msg('Шаблон «На складе доставка» доступен только после «Принято».','notice error');return;}
     if(['configuration','review','thanks'].includes(key)){
       if(key==='configuration'&&standalone){msg('Конфигурация уже создавалась для этого заказа.','notice error');return;}
@@ -1591,7 +1592,7 @@ async function loadSmsLineBoards(){
       if(!list.length){const p=document.createElement('p');p.className='muted';p.textContent='Нет линий.';card.append(p);}
       list.forEach(x=>{
         const b=document.createElement('button');b.className='section-button';const customer=x.sms_orders?.sms_customers;
-        const stage=smsTemplates[x.current_stage]?.name||smsTemplates[x.initial_stage]?.name||x.current_stage;
+        const stage=(x.initial_stage==='configuration'&&x.current_stage!=='configuration'?'Конфигурация → ':'')+(smsTemplates[x.current_stage]?.name||smsTemplates[x.initial_stage]?.name||x.current_stage);
         b.innerHTML='<span><strong>'+smsEsc(customer?.full_name||'Клиент')+' · Заказ №'+smsEsc(x.sms_orders?.order_number||'')+'</strong><small>'+smsEsc(stage||'Линия')+' · '+smsEsc(x.stores?.name||'')+' · '+smsAgo(x.last_action_at)+(profile?.role==='admin'?' · '+smsEsc(x.employees?.full_name||''):'')+'</small></span><span>Открыть</span>';
         b.onclick=()=>openSmsCustomer(customer?.id,x.order_id);card.append(b);
       });root.append(card);
