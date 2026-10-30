@@ -176,7 +176,7 @@ body.sms-modal-open{overflow:hidden}
       <div class="row"><h2>Рабочие дни</h2><button class="secondary" type="button" onclick="loadAdminDashboard()">Обновить</button></div>
       <label for="dashboardDateInput">Дата</label><input type="date" id="dashboardDateInput" onchange="loadAdminDashboard()">
       <input id="dashboardSearch" type="search" placeholder="Поиск по сотруднику или магазину" oninput="renderAdminDashboardList()">
-      <div id="dashboardFilters" class="admin-filters"><button type="button" data-filter="all" class="active">Все</button><button type="button" data-filter="progress">В работе</button><button type="button" data-filter="done">Завершённые</button><button type="button" data-filter="new">Не начатые</button></div>
+      <div id="dashboardFilters" class="admin-filters"><button type="button" data-filter="all" class="active" onclick="setAdminFilter(this.dataset.filter)">Все</button><button type="button" data-filter="progress" onclick="setAdminFilter(this.dataset.filter)">В работе</button><button type="button" data-filter="done" onclick="setAdminFilter(this.dataset.filter)">Завершённые</button><button type="button" data-filter="new" onclick="setAdminFilter(this.dataset.filter)">Не начатые</button></div>
       <div id="dashboardResults"></div></div></section>
     <section id="adminWorkdayPage" class="card hidden"><div class="row"><button class="secondary" type="button" onclick="backToAdminList()">← К списку</button><span id="adminWorkdayStatus" class="pill"></span></div>
       <div class="admin-detail-heading"><h2 id="adminWorkdayName"></h2><div id="adminWorkdayMeta" class="muted"></div></div>
