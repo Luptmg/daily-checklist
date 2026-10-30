@@ -173,7 +173,7 @@ body.sms-modal-open{overflow:hidden}
       <button id="adminNav" class="secondary hidden" onclick="showAdmin()">Панель руководителя</button>
     </div>
     <section id="adminHomePage" class="hidden"><div class="card">
-      <div class="row"><h2>Рабочие дни</h2><button class="secondary" type="button" onclick="loadAdminDashboard()">Обновить</button></div>
+      <div class="row"><h2>Рабочие дни</h2></div>
       <label for="dashboardDateInput">Дата</label><input type="date" id="dashboardDateInput" onchange="loadAdminDashboard()">
       <input id="dashboardSearch" type="search" placeholder="Поиск по сотруднику или магазину" oninput="renderAdminDashboardList()">
       <div id="dashboardFilters" class="admin-filters"><button type="button" data-filter="all" class="active" onclick="setAdminFilter(this.dataset.filter)">Все</button><button type="button" data-filter="progress" onclick="setAdminFilter(this.dataset.filter)">В работе</button><button type="button" data-filter="done" onclick="setAdminFilter(this.dataset.filter)">Завершённые</button><button type="button" data-filter="new" onclick="setAdminFilter(this.dataset.filter)">Не начатые</button></div>
@@ -242,7 +242,7 @@ body.sms-modal-open{overflow:hidden}
       <div id="historyList"></div>
     </section>
     <section id="smsPage" class="card hidden">
-      <div class="row"><h2>Сообщения клиентам</h2><button class="secondary" type="button" onclick="loadSmsHome()">Обновить</button></div>
+      <div class="row"><h2>Сообщения клиентам</h2></div>
       <div id="smsAdminControls" class="hidden"></div><div id="smsAdminStats" class="hidden"></div>
       <div id="smsLineBoards"></div>
       <div class="card">
@@ -283,7 +283,6 @@ body.sms-modal-open{overflow:hidden}
     <section id="adminPage" class="card hidden">
       <div class="row">
         <h2>Панель руководителя</h2>
-        <button class="secondary" onclick="loadAdmin()">Обновить</button>
       </div>
       <div class="row">
         <div style="flex:1;min-width:150px">
@@ -1404,12 +1403,14 @@ async function showSms(){
   $('smsCreateLauncher').classList.toggle('hidden',profile?.role!=='employee');$('smsCreateArea').classList.add('hidden');
   if(profile?.role==='admin'&&!$('smsAdminStore')){
     const controls=$('smsAdminControls');
-    controls.innerHTML='<div class="sms-grid"><div><label>Магазин</label><select id="smsAdminStore"><option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('')+'</select></div><div><label>Сотрудник</label><select id="smsAdminEmployee"><option value="">Все сотрудники</option></select></div><div><label>С даты</label><input id="smsStatFrom" type="date"></div><div><label>По дату</label><input id="smsStatTo" type="date"></div></div><button class="secondary" onclick="loadSmsAdminStats();loadSmsLineBoards()">Применить фильтры</button>';
+    controls.innerHTML='<div class="sms-grid"><div><label>Магазин</label><select id="smsAdminStore" onchange="applySmsAdminFilters()"><option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('')+'</select></div><div><label>Сотрудник</label><select id="smsAdminEmployee" onchange="applySmsAdminFilters()"><option value="">Все сотрудники</option></select></div><div><label>С даты</label><input id="smsStatFrom" type="date" onchange="applySmsAdminStatsFilter()"></div><div><label>По дату</label><input id="smsStatTo" type="date" onchange="applySmsAdminStatsFilter()"></div></div>';
     const er=await sb.from('employees').select('id,full_name').eq('active',true).order('full_name');
     if(!er.error)er.data.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.full_name;$('smsAdminEmployee').append(o);});
   }
   await loadSmsHome();
 }
+function applySmsAdminFilters(){loadSmsAdminStats();loadSmsLineBoards();}
+function applySmsAdminStatsFilter(){loadSmsAdminStats();}
 async function loadSmsHome(){
   if(profile?.role==='admin'){await loadSmsAdminStats();await loadSmsLineBoards();return;}
   if(!day?.store_id){$('smsCustomerDetails').innerHTML='<p class="notice">Сначала начни рабочий день и выбери магазин.</p>';return;}
