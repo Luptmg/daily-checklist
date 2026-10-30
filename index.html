@@ -55,7 +55,7 @@ button:disabled{opacity:.55;cursor:not-allowed}
 .pill{display:inline-block;border-radius:20px;padding:6px 10px;font-weight:700;font-size:12px}
 .pill-ontime{background:#d9f8e4;color:#126b37;border:1px solid #8be0aa}
 .pill-late{background:#ffe0e0;color:#a31616;border:1px solid #ff9a9a}
-.table-wrap{overflow-x:auto}
+
 table{width:100%;border-collapse:collapse;font-size:14px}
 th,td{text-align:left;padding:10px;border-bottom:1px solid var(--border);vertical-align:top}
 th{background:var(--table-head)}
@@ -1205,7 +1205,7 @@ function smsAgo(v){
   return 'Последнее действие: '+Math.floor(days/30)+' мес. назад';
 }
 function smsEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function smsEmployeeStoreId(){return profile?.role==='admin'?$('smsAdminStore')?.value||'':day?.store_id||'';}
+
 async function showSms(){
   hidePages();$('smsPage').classList.remove('hidden');
   $('smsNav').classList.add('primary');$('smsNav').classList.remove('secondary');
@@ -1390,9 +1390,7 @@ function renderSmsOrder(){
   if(canContinue)$('smsTemplate').value=defaultKey;
   renderSmsLines();if(canContinue)updateSmsTemplateFields();
 }
-function toggleSmsOtherTemplates(){
-  const panel=$('smsOtherTemplates');if(panel)panel.open=!panel.open;
-}
+
 function selectSmsOtherTemplate(){
   const key=$('smsOtherTemplate')?.value;if(!key)return;
   const primary=$('smsTemplate');
