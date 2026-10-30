@@ -274,24 +274,7 @@ body.sms-modal-open{overflow:hidden}
         <button class="secondary" type="button" onclick="goHome()" style="width:100%;margin-top:8px">Отмена</button>
       </form>
     </section>
-    <section id="adminPage" class="card hidden">
-      <div class="row">
-        <h2>Панель руководителя</h2>
-      </div>
-      <div class="row">
-        <div style="flex:1;min-width:150px">
-          <label for="adminDate">Дата</label>
-          <input type="date" id="adminDate">
-        </div>
-        <div style="flex:1;min-width:150px">
-          <label for="adminStore">Магазин</label>
-          <select id="adminStore"><option value="">Все магазины</option></select>
-        </div>
-      </div>
-      <div id="adminSummary" class="muted"></div>
-      <div id="adminResults"></div>
-    </section>
-  </section>
+</section>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -394,7 +377,7 @@ try{savedTheme=localStorage.getItem('dailyChecklistTheme')||'light';}catch(e){}
 applyTheme(savedTheme);
 
 function hidePages(){
-  ['setup','home','work','historyPage','smsPage','adminPage','adminHomePage','adminHistoryPage','adminWorkdayPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
+  ['setup','home','work','historyPage','smsPage','adminHomePage','adminHistoryPage','adminWorkdayPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
 }
 function setAdminNav(active){
   ['homeNav','historyNav','adminNav'].forEach(id=>{
@@ -545,8 +528,6 @@ async function boot(){
     showApp();
 
     if(profile.role==='admin'){
-      const adminDate=$('adminDate');if(adminDate)adminDate.value=todayKey();
-      const dashboardDate=$('dashboardDate');if(dashboardDate)dashboardDate.textContent=dateLabel(todayKey());
       const dashboardDateInput=$('dashboardDateInput');if(dashboardDateInput)dashboardDateInput.value=todayKey();
       await showAdminHome();
     }else{
@@ -567,15 +548,12 @@ function fillStoreSelects(){
     select.append(o);
   });
 
-  const a=$('adminStore');
-  a.innerHTML='<option value="">Все магазины</option>';
   const hs=$('historyStore');
   if(hs)hs.innerHTML='<option value="">Все магазины</option>';
   stores.forEach(s=>{
     const o=document.createElement('option');
     o.value=s.id;
     o.textContent=`${s.name}${s.city?' · '+s.city:''}`;
-    a.append(o);
     if(hs)hs.append(o.cloneNode(true));
   });
   const he=$('historyEmployee');
@@ -1043,124 +1021,7 @@ async function loadAdminHistory(){
   }catch(err){root.textContent='Не удалось загрузить историю: '+(err.message||err);}
 }
 
-async function loadAdmin(){
-  if(profile?.role!=='admin')return;
-  const root=$('adminResults');
-  root.textContent='Загрузка…';
 
-  try{
-    let q=sb.from('workdays')
-      .select('id,employee_id,work_date,store_id,created_at,checked_in_at,arrival_status,arrival_manually_edited,confirmed_at,employees(full_name),stores(name,city,timezone),section_progress(section_key,answers,comments,completed_at)')
-      .order('work_date',{ascending:false})
-      .limit(500);
-
-    const date=$('adminDate').value;
-    if(date)q=q.eq('work_date',date);
-    const storeId=$('adminStore').value;
-    if(storeId)q=q.eq('store_id',storeId);
-
-    const {data,error}=await q;
-    if(error)throw error;
-    const rows=data||[];
-    const isComplete=item=>sections.every(s=>(item.section_progress||[]).some(p=>p.section_key===s.key&&!!p.completed_at));
-    const completedRows=rows.filter(isComplete).length;
-    const aggregate=rows.reduce((acc,item)=>{const st=getProgressStats(item.section_progress||[]);acc.done+=st.done;acc.total+=st.total;acc.failed+=st.failed;return acc;},{done:0,total:0,failed:0});
-    const aggregatePercent=aggregate.total?Math.round(aggregate.done/aggregate.total*100):0;
-
-    $('adminSummary').textContent=`Записей: ${rows.length} · Выполнение пунктов: ${aggregatePercent}% (${aggregate.done}/${aggregate.total}) · Не выполнено: ${aggregate.failed} · Все пункты обработаны: ${completedRows} · Без отметки прихода: ${rows.filter(x=>!x.checked_in_at).length}`;
-    root.innerHTML='';
-
-    if(!rows.length){
-      root.textContent='За выбранные фильтры записей нет.';
-      return;
-    }
-
-    const wrap=document.createElement('div');
-    wrap.className='table-wrap';
-    const table=document.createElement('table');
-    table.innerHTML='<thead><tr><th>Дата</th><th>Сотрудник</th><th>Магазин</th><th>Приход</th><th>Чек-лист</th><th>Действия</th></tr></thead>';
-    const body=document.createElement('tbody');
-
-    rows.forEach(item=>{
-      const tr=document.createElement('tr');
-
-      const td1=document.createElement('td');
-      td1.textContent=dateLabel(item.work_date);
-
-      const td2=document.createElement('td');
-      td2.textContent=item.employees?.full_name||'—';
-
-      const td3=document.createElement('td');
-      td3.textContent=item.stores?.name||'—';
-
-      const td4=document.createElement('td');
-      if(item.checked_in_at){
-        const time=document.createElement('div');
-        time.textContent=new Date(item.checked_in_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
-        const badge=document.createElement('span');
-        badge.className='pill '+(item.arrival_status==='on_time'?'pill-ontime':'pill-late');
-        badge.textContent=item.arrival_status==='on_time'?'✓ Вовремя':'⚠ Опоздание';
-        td4.append(time,badge);
-
-        if(item.arrival_manually_edited){
-          const edited=document.createElement('div');
-          edited.className='small';
-          edited.textContent='Изменено';
-          td4.append(edited);
-        }
-      }else{
-        td4.textContent='Не отмечен';
-      }
-
-      const td5=document.createElement('td');
-      const stats=getProgressStats(item.section_progress||[]);
-      const completed=(item.section_progress||[]).filter(p=>!!p.completed_at).length;
-      td5.textContent=`${stats.percent}% (${stats.done}/${stats.total}) · не выполнено: ${stats.failed} · заполнено разделов ${completed}/3${item.confirmed_at?' · подтверждён':''}`;
-
-      const td6=document.createElement('td');
-      td6.className='delete-cell';
-
-      const edit=document.createElement('button');
-      edit.className='secondary';
-      edit.style.marginTop='6px';
-      edit.textContent='Изменить время';
-      edit.onclick=()=>editArrivalTime(item);
-      td6.append(edit);
-
-      const detailsButton=document.createElement('button');
-      detailsButton.className='secondary';
-      detailsButton.style.marginTop='6px';
-      detailsButton.textContent='Пункты / комментарии';
-      td6.append(detailsButton);
-
-      const detailsTr=document.createElement('tr');
-      detailsTr.classList.add('hidden');
-      const detailsTd=document.createElement('td');
-      detailsTd.colSpan=6;
-      detailsTd.append(buildChecklistDetails(item.section_progress||[]));
-      detailsTr.append(detailsTd);
-      detailsButton.onclick=()=>{detailsTr.classList.toggle('hidden');detailsButton.textContent=detailsTr.classList.contains('hidden')?'Пункты / комментарии':'Скрыть пункты';};
-
-      if(isComplete(item)){
-        const del=document.createElement('button');
-        del.className='danger';
-        del.style.marginTop='6px';
-        del.textContent='Удалить чек-лист';
-        del.onclick=()=>deleteCompletedChecklist(item);
-        td6.append(del);
-      }
-
-      [td1,td2,td3,td4,td5,td6].forEach(td=>tr.append(td));
-      body.append(tr,detailsTr);
-    });
-
-    table.append(body);
-    wrap.append(table);
-    root.append(wrap);
-  }catch(err){
-    root.textContent='Не удалось загрузить панель: '+(err.message||err);
-  }
-}
 
 async function editArrivalTime(item){
   if(profile?.role!=='admin')return;
@@ -1192,25 +1053,8 @@ async function editArrivalTime(item){
   }
 }
 
-async function deleteCompletedChecklist(item){
-  if(profile?.role!=='admin')return;
-  const who=item.employees?.full_name||'сотрудник';
-  const when=dateLabel(item.work_date);
 
-  if(!confirm(`Удалить завершённый чек-лист сотрудника «${who}» за ${when}? Это действие нельзя отменить.`))return;
 
-  try{
-    const {error}=await sb.rpc('admin_delete_completed_workday',{p_workday_id:item.id});
-    if(error)throw error;
-    msg('Завершённый чек-лист удалён.','notice success');
-    await loadAdmin();
-  }catch(err){
-    msg('Не удалось удалить чек-лист. Проверь, что SQL-функция admin_delete_completed_workday создана в Supabase: '+(err.message||err),'notice error');
-  }
-}
-
-$('adminDate').addEventListener('change',loadAdmin);
-$('adminStore').addEventListener('change',loadAdmin);
 ['historyFrom','historyTo','historyEmployee','historyStore'].forEach(id=>$(id).addEventListener('change',loadAdminHistory));
 
 $('passwordForm').addEventListener('submit',async e=>{
