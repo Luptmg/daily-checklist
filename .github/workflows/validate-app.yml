@@ -1,0 +1,28 @@
+name: Validate application script
+on:
+  push:
+    branches:
+      - feature/customer-sms-v2
+  pull_request:
+    branches:
+      - main
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Extract inline application script
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          html = Path("index.html").read_text(encoding="utf-8")
+          anchor = html.index("supabase-js")
+          start = html.index("<script>", anchor) + len("<script>")
+          end = html.index("</script>", start)
+          Path("/tmp/app.js").write_text(html[start:end], encoding="utf-8")
+          PY
+      - name: Check JavaScript syntax
+        run: node --check /tmp/app.js
