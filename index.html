@@ -205,12 +205,6 @@ body.sms-modal-open{overflow:hidden}
       <button class="primary" onclick="startDay()">Начать рабочий день</button>
     </div>
     <section id="home" class="hidden">
-      <div id="finalConfirm" class="card hidden">
-        <h2>Все пункты обработаны</h2>
-        <p>Все отметки и причины невыполнения сохранены.</p>
-        <p class="muted">Проверь заполнение разделов и подтверди завершение рабочего дня.</p>
-        <button id="confirmWorkdayButton" class="primary" type="button" onclick="confirmWorkday()">Подтвердить рабочий день</button>
-      </div>
       <div class="card"><h2>Твой рабочий день</h2><div id="identity" class="muted"></div><div id="checkinArea"></div><div id="overallProgress"></div><button id="homeContinueButton" class="home-continue" type="button"><strong>Продолжить работу</strong></button><div id="homeContinueHint" class="small"></div><h3 style="margin:20px 0 4px">Разделы</h3><div id="sections"></div></div>
       <div id="finished" class="card hidden">
         <h2>Рабочий день подтверждён</h2>
@@ -725,17 +719,17 @@ function renderHome(){
   const allDone=sections.every(x=>progress[x.key]?.completed),finished=!!day.confirmed_at,current=sections.find(x=>!progress[x.key]?.completed)||sections[0];
   const cta=$('homeContinueButton'),hint=$('homeContinueHint');cta.classList.toggle('complete',finished);cta.disabled=finished;
   if(finished){cta.innerHTML='<strong>Рабочий день завершён</strong>';hint.textContent='Все разделы подтверждены.';}
-  else if(allDone){cta.innerHTML='<strong>Подтвердить рабочий день</strong>';hint.textContent='Все разделы заполнены. Осталось подтвердить завершение.';cta.onclick=()=>$('finalConfirm').scrollIntoView({behavior:'smooth',block:'center'});}
+  else if(allDone){cta.innerHTML='<strong>Подтвердить рабочий день</strong>';hint.textContent='Все разделы заполнены. Осталось подтвердить завершение.';cta.onclick=confirmWorkday;}
   else{cta.innerHTML='<strong>Продолжить работу</strong>';hint.textContent='Рекомендуемый раздел: '+current.name+'. Откроется первый незавершённый пункт.';cta.onclick=()=>openSection(current.key);}
   const root=$('sections');root.innerHTML='';sections.forEach(section=>{const st=progress[section.key]||{answers:[],comments:{},completed:false},n=section.tasks.length,d=(st.answers||[]).filter(Boolean).length,f=Object.values(st.comments||{}).filter(v=>String(v||'').trim()).length,processed=d+f;
     const row=document.createElement('button');row.type='button';row.className='home-section-row';const icon=document.createElement('span');icon.className='home-section-icon';icon.textContent=st.completed?(f?'!':'✓'):processed?'◷':'○';
     const body=document.createElement('span');body.className='home-section-body';const title=document.createElement('strong');title.textContent=section.name;const meta=document.createElement('small');meta.textContent=d+' из '+n+' выполнено · '+f+' не выполнено';body.append(title,meta);
     const status=document.createElement('span');status.className='home-section-status '+(st.completed?(f?'has-fail':'is-done'):processed?'is-progress':'is-new');status.textContent=st.completed?(f?'Есть замечания':'Завершён'):processed?'В работе':'Не начат';row.append(icon,body,status);row.disabled=finished;row.onclick=()=>openSection(section.key);root.append(row);});
-  $('finalConfirm').classList.toggle('hidden',!allDone||finished);$('finished').classList.toggle('hidden',!finished);
+  $('finished').classList.toggle('hidden',!finished);
 }
 async function confirmWorkday(){
   if(profile?.role!=='employee'||!day||day.confirmed_at)return;
-  const button=$('confirmWorkdayButton');
+  const button=$('homeContinueButton');
   button.disabled=true;
   clearMsg();
   try{
