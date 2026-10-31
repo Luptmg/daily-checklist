@@ -1570,58 +1570,6 @@ function renderSmsLines(){
 
 async function copySmsMessage(){
   if(profile?.role!=='employee'||!employee||!day?.store_id){msg('Копировать сообщения может сотрудник с активным рабочим днём.','notice error');return;}
-  const key=$('smsTemplate').value,t=smsTemplates[key],store=stores.find(s=>s.id===day.store_id);
-  if(key==='configuration'&&!$('smsLink1').value.trim()){msg('Для шаблона «Конфигурация» нужна ссылка на конфигурацию №1.','notice error');return;}
-  const {data:existing,error}=await sb.from('sms_lines').select('*').eq('order_id',smsOrder.id);
-  if(error){msg(error.message,'notice error');return;}
-  const main=existing.find(x=>x.line_kind==='main');
-  const standalone=existing.find(x=>x.line_kind==='standalone'&&x.initial_stage===key);
-  let line=null,isAdditional=false,stageBefore=null,stageAfter=null,complete=false;
-  if(!main){
-    const hasConfig=existing.some(x=>x.line_kind==='standalone'&&x.initial_stage==='configuration');
-    if(existing.some(x=>x.line_kind==='standalone'&&['review','thanks'].includes(x.initial_stage))){msg('Этот заказ уже завершён самостоятельным сообщением «Отзыв» или «Благодарность». Новую основную линию запустить нельзя.','notice error');return;}
-    if(hasConfig&&key==='cdek'){msg('После конфигурации основную линию можно начать с «На складе самовывоз», «Доставка со склада» или «Принято».','notice error');return;}
-    if(key==='warehouse_delivery'){msg('Шаблон «На складе доставка» доступен только после «Принято».','notice error');return;}
-    if(['configuration','review','thanks'].includes(key)){
-      if(key==='configuration'&&standalone){msg('Конфигурация уже создавалась для этого заказа.','notice error');return;}
-      const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'standalone',status:'completed',initial_stage:key,current_stage:key,completed_at:new Date().toISOString()}).select('*').single();
-      if(ins.error)throw ins.error;line=ins.data;complete=true;
-    }else{
-      if(!t.start){msg('Этот шаблон не может начинать линию.','notice error');return;}
-      const fromConfig=hasConfig&&['warehouse_pickup','dispatch','accepted'].includes(key);
-      const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:'active',initial_stage:fromConfig?'configuration':key,current_stage:key,started_after_configuration:fromConfig}).select('*').single();
-      if(ins.error)throw ins.error;line=ins.data;stageBefore=fromConfig?'configuration':null;stageAfter=key;
-    }
-  }else{
-    line=main;
-    if(main.status==='completed'){isAdditional=true;}
-    else if(main.current_stage==='configuration'&&['warehouse_pickup','dispatch','accepted'].includes(key)){stageBefore='configuration';stageAfter=key;}
-    else if(main.current_stage==='accepted'&&['warehouse_pickup','warehouse_delivery'].includes(key)){stageBefore='accepted';stageAfter=key;}
-    else if(['warehouse_pickup','warehouse_delivery','dispatch','cdek'].includes(main.current_stage)&&key==='review'){stageBefore=main.current_stage;stageAfter='review';complete=true;}
-    else {isAdditional=true;}
-  }
-  if(main&&['configuration','review','thanks'].includes(key)&&!stageAfter)isAdditional=true;
-  const text=$('smsPreview').textContent;
-  const customerActivityBefore=smsCustomer.last_activity_at;
-  try{await navigator.clipboard.writeText(text);}catch(e){
-    if(!main&&line)await sb.from('sms_lines').delete().eq('id',line.id);
-    if(customerActivityBefore)await sb.from('sms_customers').update({last_activity_at:customerActivityBefore}).eq('id',smsCustomer.id);
-    msg('Браузер не разрешил копирование. Проверь разрешение буфера обмена.','notice error');return;
-  }
-  const insMsg=await sb.from('sms_messages').insert({line_id:line.id,order_id:smsOrder.id,template_key:key,rendered_text:text,copied_by_employee_id:employee.id,is_additional:isAdditional,stage_before:stageBefore,stage_after:stageAfter,line_last_action_before:main?.last_action_at||null,customer_last_activity_before:customerActivityBefore,line_status_before:main?.status||null,line_completed_at_before:main?.completed_at||null}).select('id').single();
-  if(insMsg.error){
-    if(!main)await sb.from('sms_lines').delete().eq('id',line.id);
-    if(customerActivityBefore)await sb.from('sms_customers').update({last_activity_at:customerActivityBefore}).eq('id',smsCustomer.id);
-    msg('Текст скопирован, но не удалось сохранить историю: '+insMsg.error.message,'notice error');return;
-  }
-  const lineUpdate={last_action_at:new Date().toISOString()};
-  if(stageAfter){lineUpdate.current_stage=stageAfter;lineUpdate.status=complete?'completed':'active';lineUpdate.completed_at=complete?new Date().toISOString():null;lineUpdate.completed_by_employee_id=complete?employee.id:null;}
-  const lineSaved=await sb.from('sms_lines').update(lineUpdate).eq('id',line.id);
-  if(lineSaved.error){await sb.from('sms_messages').delete().eq('id',insMsg.data.id);if(!main)await sb.from('sms_lines').delete().eq('id',line.id);if(customerActivityBefore)await sb.from('sms_customers').update({last_activity_at:customerActivityBefore}).eq('id',smsCustomer.id);msg('SMS скопировано, но запись не удалось завершить. Повтори действие. '+lineSaved.error.message,'notice error');return;}
-  smsCustomer.last_activity_at=new Date().toISOString();
-  await loadSmsLines();renderSmsOrder();msg('SMS скопировано и сохранено в истории.','notice success');
-}async function copySmsMessage(){
-  if(profile?.role!=='employee'||!employee||!day?.store_id){msg('Копировать сообщения может сотрудник с активным рабочим днём.','notice error');return;}
   const key=$('smsTemplate')?.value,t=smsTemplates[key];
   if(!t){msg('Сначала выберите шаблон.','notice error');return;}
   if(key==='configuration'&&!$('smsLink1')?.value.trim()){msg('Для шаблона «Конфигурация» нужна ссылка на конфигурацию №1.','notice error');return;}
