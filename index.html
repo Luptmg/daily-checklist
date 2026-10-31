@@ -468,6 +468,7 @@ function showPasswordChange(){
 }
 function hideApp(){
   closeSettingsMenu();
+  $('maintenanceSettings').classList.add('hidden');
   $('maintenancePage').classList.add('hidden');
   $('app').classList.add('hidden');
   $('auth').classList.remove('hidden');
