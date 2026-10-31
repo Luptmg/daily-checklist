@@ -1636,13 +1636,13 @@ async function copySmsMessage(){
       }
     }
     const main=existing.find(x=>x.line_kind==='main');
-    let line=null,stageBefore=null,stageAfter=null,complete=false,isAdditional=false;
+    let line=null,stageBefore=null,stageAfter=null,complete=false,isAdditional=false,createdLine=false;
     if(t.standalone){
       if(existing.some(x=>x.line_kind==='standalone'&&x.initial_stage===key)){
         msg('Самостоятельный шаблон «'+t.name+'» уже отправлялся. Если это ошибка, отмените его в истории.','notice error');return;
       }
       const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'standalone',status:'completed',initial_stage:key,current_stage:key,completed_at:new Date().toISOString(),completed_by_employee_id:employee.id}).select('*').single();
-      if(ins.error)throw ins.error;line=ins.data;complete=true;
+      if(ins.error)throw ins.error;line=ins.data;createdLine=true;complete=true;
     }else{
       if(key==='warehouse_delivery'&&!main){msg('Шаблон «На складе доставка» нельзя выбрать первым. Сначала используйте «Принято».','notice error');return;}
       if(!main){
@@ -1650,7 +1650,7 @@ async function copySmsMessage(){
         const hasConfig=existing.some(x=>x.line_kind==='standalone'&&x.initial_stage==='configuration');
         if(hasConfig&&key==='cdek'){msg('После конфигурации основную цепочку можно начать с «На складе самовывоз», «Доставка со склада» или «Принято».','notice error');return;}
         const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:'active',initial_stage:hasConfig?'configuration':key,current_stage:key,started_after_configuration:hasConfig}).select('*').single();
-        if(ins.error)throw ins.error;line=ins.data;stageBefore=hasConfig?'configuration':null;stageAfter=key;
+        if(ins.error)throw ins.error;line=ins.data;createdLine=true;stageBefore=hasConfig?'configuration':null;stageAfter=key;
       }else{
         if(main.status==='completed'){msg('Основная цепочка уже завершена. Самостоятельные шаблоны можно отправлять отдельно.','notice error');return;}
         line=main;
@@ -1663,15 +1663,29 @@ async function copySmsMessage(){
     const rendered=$('smsPreview')?.textContent||'';
     const customerActivityBefore=smsCustomer.last_activity_at;
     try{await navigator.clipboard.writeText(rendered);}catch(e){
-      if(line){const cleanup=await sb.from('sms_lines').delete().eq('id',line.id).select('id');}
+      // Удаляем только линию, созданную в этой попытке. Существующую цепочку
+      // нельзя затрагивать из-за отказа браузера в доступе к буферу обмена.
+      if(createdLine)await sb.from('sms_lines').delete().eq('id',line.id);
       msg('Браузер не разрешил копирование. Разрешите доступ к буферу обмена и повторите.','notice error');return;
     }
     const insMsg=await sb.from('sms_messages').insert({line_id:line.id,order_id:smsOrder.id,template_key:key,rendered_text:rendered,copied_by_employee_id:employee.id,is_additional:isAdditional,stage_before:stageBefore,stage_after:stageAfter,line_last_action_before:main?.last_action_at||null,customer_last_activity_before:customerActivityBefore,line_status_before:main?.status||null,line_completed_at_before:main?.completed_at||null}).select('id').single();
-    if(insMsg.error){await sb.from('sms_lines').delete().eq('id',line.id);throw insMsg.error;}
+    if(insMsg.error){
+      if(createdLine)await sb.from('sms_lines').delete().eq('id',line.id);
+      throw insMsg.error;
+    }
+    const previousLineState=main?{
+      current_stage:main.current_stage,status:main.status,last_action_at:main.last_action_at,
+      completed_at:main.completed_at,completed_by_employee_id:main.completed_by_employee_id
+    }:null;
     const patch={last_action_at:new Date().toISOString()};
     if(stageAfter){patch.current_stage=stageAfter;patch.status=complete?'completed':'active';patch.completed_at=complete?new Date().toISOString():null;patch.completed_by_employee_id=complete?employee.id:null;}
     const saved=await sb.from('sms_lines').update(patch).eq('id',line.id).select('id');
-    if(saved.error||!saved.data?.length){await sb.from('sms_messages').delete().eq('id',insMsg.data.id);await sb.from('sms_lines').delete().eq('id',line.id);throw(saved.error||new Error('Не удалось обновить этап линии'));}
+    if(saved.error||!saved.data?.length){
+      await sb.from('sms_messages').delete().eq('id',insMsg.data.id);
+      if(createdLine)await sb.from('sms_lines').delete().eq('id',line.id);
+      else if(previousLineState)await sb.from('sms_lines').update(previousLineState).eq('id',line.id);
+      throw(saved.error||new Error('Не удалось обновить этап линии'));
+    }
     smsCustomer.last_activity_at=new Date().toISOString();
     await loadSmsLines();renderSmsOrder();await loadSmsLineBoards();
     msg('SMS скопировано и сохранено в истории.','notice success');
@@ -1754,7 +1768,7 @@ async function loadSmsLineBoards(){
       const lines=(order.sms_lines||[]).filter(line=>(line.sms_messages||[]).length>0);
       const activeLines=lines.filter(line=>line.status==='active');
       const completed=lines.length>0&&activeLines.length===0;
-      const latest=[...lines].sort((a,b)=>new Date(b.last_action_at||0)-new Date(a.last_action_at||0))[0]||null;
+      const latest=[...lines].sort((a,b)=>new Date(b.last_action_at||b.created_at||0)-new Date(a.last_action_at||a.created_at||0))[0]||null;
       const ownerIds=lines.map(line=>line.created_by_employee_id).filter(Boolean);
       const isMine=profile?.role==='employee'
         ?(ownerIds.includes(employee?.id)||(!lines.length&&order.sms_customers?.created_by_employee_id===employee?.id)):true;
