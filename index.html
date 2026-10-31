@@ -1515,6 +1515,7 @@ async function addSmsOrder(){
   await openSmsCustomer(smsCustomer.id,r.data.id);
 }
 async function selectSmsOrder(id){
+  smsOutOfTurnMode=false;
   let step='проверка ID заказа';
   try{
     if(!id||id==='undefined'||id==='null')throw new Error('Не передан ID заказа.');
