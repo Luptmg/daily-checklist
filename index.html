@@ -1109,10 +1109,14 @@ const scheduleStoreNames={
   'Красная Площадь':'Краснодар Красная Площадь'
 };
 
+function normalizeScheduleStoreName(storeName){
+  return String(storeName||'').replace(/\\u00a0/g,' ').replace(/\\s+/g,' ').trim().toLocaleLowerCase('ru-RU');
+}
+
 function getScheduleStoreName(storeName){
-  const key=String(storeName||'').trim().toLocaleLowerCase('ru-RU');
-  const entry=Object.entries(scheduleStoreNames).find(([name])=>name.toLocaleLowerCase('ru-RU')===key);
-  return entry?.[1]||String(storeName||'').trim();
+  const key=normalizeScheduleStoreName(storeName);
+  const entry=Object.entries(scheduleStoreNames).find(([name])=>normalizeScheduleStoreName(name)===key);
+  return entry?.[1]||String(storeName||'').replace(/\\u00a0/g,' ').replace(/\\s+/g,' ').trim();
 }
 
 let selectedScheduleDate=null;
@@ -1217,7 +1221,7 @@ function renderScheduleCalendar(){
     const primary=stores.find(x=>x.id===scheduleEmployee?.primary_store_id);
     const scheduleStoreName=getScheduleStoreName(primary?.name);
     const records=(scheduleApiData.schedules||[]).filter(x=>
-      x.monthId===month.id&&(!primary||String(x.store||'').trim().toLocaleLowerCase('ru-RU')===scheduleStoreName.toLocaleLowerCase('ru-RU'))
+      x.monthId===month.id&&(!primary||normalizeScheduleStoreName(x.store)===normalizeScheduleStoreName(scheduleStoreName))
     );
     renderPersonalSchedule(month,records);
     return;
