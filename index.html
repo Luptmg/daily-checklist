@@ -1529,74 +1529,45 @@ async function selectSmsOrder(id){
   }catch(e){msg('Не удалось открыть заказ (этап: '+step+'): '+e.message,'notice error');}
 }
 function getSmsRecommendedTemplateKeys(){
-  const main=smsLines.find(x=>x.line_kind==='main');
-  // Основная линия — единственная. После её завершения новую линию в этом заказе не начинаем.
-  if(main){
-    if(main.status==='completed')return [];
-    if(main.current_stage==='accepted')return ['warehouse_pickup','warehouse_delivery'];
-    if(['warehouse_pickup','warehouse_delivery','dispatch','cdek'].includes(main.current_stage))return ['review'];
-    return [];
-  }
-  const hasConfig=smsLines.some(x=>x.line_kind==='standalone'&&x.initial_stage==='configuration');
-  const hasTerminal=smsLines.some(x=>x.line_kind==='standalone'&&['review','thanks'].includes(x.initial_stage));
-  // Повторный старт разрешён только после самостоятельной линии «Конфигурация».
-  if(hasTerminal)return [];
-  if(hasConfig)return ['warehouse_pickup','dispatch','accepted'];
-  if(!smsLines.length)return ['accepted','warehouse_pickup','dispatch','configuration','review','thanks'];
-  return [];
+  // Возвращаем весь каталог: доступность проверяется при копировании,
+  // чтобы самостоятельные шаблоны не исчезали из выбора после начала цепочки.
+  return Object.keys(smsTemplates);
 }
 function renderSmsOrder(){
-  const root=$('smsCustomerDetails');const old=$('smsOrderWork');if(old)old.remove();
-  const recommended=getSmsRecommendedTemplateKeys();
-  const canContinue=recommended.length>0;
-  const recommendedOptions=recommended.map(k=>'<option value="'+k+'">'+smsEsc(smsTemplates[k].name)+'</option>').join('');
+  const old=$('smsOrderWork');if(old)old.remove();
   const allOptions=Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('');
-  const defaultKey=recommended[0]||'';
   const currentLine=smsLines.find(l=>l.line_kind==='main'&&l.status==='active');
-  const currentStage=currentLine?(smsTemplates[currentLine.current_stage]?.name||currentLine.current_stage):'Нет активной линии';
-  const statusText=currentLine?'Текущий этап: '+smsEsc(currentStage):(canContinue?'Можно начать новую линию':'Все линии этого заказа завершены');
-  const lockedNotice='<div class="notice">Все линии этого заказа завершены. Начать ещё одну линию нельзя.</div>';
-  const workControls=canContinue
-    ? '<div class="sms-step-card"><label for="smsTemplate">СЛЕДУЮЩЕЕ СООБЩЕНИЕ</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+recommendedOptions+'</select><details class="sms-details" id="smsOtherTemplates"><summary>Другие шаблоны</summary><div class="sms-details-body"><label for="smsOtherTemplate">Выбрать шаблон</label><select id="smsOtherTemplate" onchange="selectSmsOtherTemplate()">'+allOptions+'</select></div></details><div id="smsConfigFields" class="sms-config-fields hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><details class="sms-details" id="smsPreviewDetails"><summary>Посмотреть текст сообщения</summary><div class="sms-details-body"><div id="smsPreview" class="sms-message"></div></div></details><button class="primary sms-copy-button" type="button" onclick="copySmsMessage()">Скопировать SMS</button>'
-    : lockedNotice;
-  const html='<div class="card sms-order-card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><div class="sms-order-meta"><span>Создан '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</span><span>·</span><span>'+statusText+'</span></div>'+workControls+'<div id="smsLineList"></div></div>';
+  const currentStage=currentLine?(smsTemplates[currentLine.current_stage]?.name||currentLine.current_stage):'Нет активной основной линии';
+  const statusText='Основная цепочка: '+smsEsc(currentStage);
+  const html='<div class="card sms-order-card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><div class="sms-order-meta"><span>Создан '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</span><span>·</span><span>'+statusText+'</span></div><div class="sms-step-card"><label for="smsTemplate">ВЫБЕРИТЕ ШАБЛОН СООБЩЕНИЯ</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+allOptions+'</select><p class="muted" id="smsTemplateHint">Выберите шаблон — текст сообщения появится ниже. Для самостоятельных сообщений создаётся отдельная линия.</p><div id="smsConfigFields" class="sms-config-fields hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><details class="sms-details" id="smsPreviewDetails" open><summary>Текст сообщения</summary><div class="sms-details-body"><div id="smsPreview" class="sms-message"></div></div></details><button class="primary sms-copy-button" type="button" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
   const previous=$('smsOrderModal');if(previous)previous.remove();
   document.body.insertAdjacentHTML('beforeend','<div id="smsOrderModal" class="sms-order-modal" role="presentation" onclick="if(event.target===this)closeSmsOrderView()"><div class="sms-order-dialog" role="dialog" aria-modal="true" aria-label="Работа с заказом"><div class="sms-modal-close"><button type="button" onclick="closeSmsOrderView()" aria-label="Закрыть заказ">×</button></div><div id="smsOrderWork">'+html+'</div></div></div>');
-  if(canContinue)$('smsTemplate').value=defaultKey;
-  renderSmsLines();if(canContinue)updateSmsTemplateFields();
+  updateSmsTemplateFields();renderSmsLines();
 }
-
-function selectSmsOtherTemplate(){
-  const key=$('smsOtherTemplate')?.value;if(!key)return;
-  const primary=$('smsTemplate');
-  if(![...primary.options].some(o=>o.value===key))primary.add(new Option(smsTemplates[key].name,key));
-  primary.value=key;
-  $('smsOtherTemplates').open=false;
-  updateSmsTemplateFields();
+function updateSmsTemplateFields(){
+  const key=$('smsTemplate')?.value;
+  $('smsConfigFields')?.classList.toggle('hidden',key!=='configuration');
+  const hint=$('smsTemplateHint');
+  if(hint)hint.textContent=key&&smsTemplates[key]?.standalone?'Самостоятельное сообщение: будет создана отдельная линия.':key==='warehouse_delivery'||key==='cdek'?'Этот шаблон доступен только на соответствующем этапе основной цепочки.':'Выбранный шаблон будет проверен по текущему этапу заказа.';
+  previewSms();
 }
 function renderSmsLines(){
   const root=$('smsLineList');if(!root)return;
-  root.innerHTML='<details class="sms-details" id="smsHistoryDetails"><summary>История сообщений · '+smsLines.reduce((n,l)=>n+(l.sms_messages||[]).length,0)+'</summary><div class="sms-details-body" id="smsHistoryBody"></div></details>';
+  root.innerHTML='<details class="sms-details" id="smsHistoryDetails" open><summary>История сообщений · '+smsLines.reduce((n,l)=>n+(l.sms_messages||[]).length,0)+'</summary><div class="sms-details-body" id="smsHistoryBody"></div></details>';
   const body=$('smsHistoryBody');
   if(!smsLines.length){body.innerHTML='<p class="muted">Для заказа пока нет линий. Первое сообщение создаст линию.</p>';return;}
   smsLines.forEach(l=>{
     const d=document.createElement('div');d.className='sms-history-line';
     const status=l.status==='completed'?'Завершена':'Текущая';
     d.innerHTML='<strong>'+(l.line_kind==='main'?'Основная линия':'Самостоятельная линия')+' · '+status+'</strong><div class="small">'+smsEsc(l.stores?.name||'Магазин')+' · Создал: '+smsEsc(l.creator?.full_name||'—')+' · '+smsAgo(l.last_action_at)+'</div>';
-    (l.sms_messages||[]).sort((a,b)=>new Date(a.copied_at)-new Date(b.copied_at)).forEach(m=>{
-      const p=document.createElement('div');p.className='small';p.textContent=smsTemplates[m.template_key]?.name+' · '+new Date(m.copied_at).toLocaleString('ru-RU')+' · скопировал: '+(m.copier?.full_name||'—')+(m.is_additional?' · дополнительное':'');d.append(p);
+    (l.sms_messages||[]).slice().sort((a,b)=>new Date(a.copied_at)-new Date(b.copied_at)).forEach(m=>{
+      const p=document.createElement('div');p.className='small';p.textContent=(smsTemplates[m.template_key]?.name||m.template_key)+' · '+new Date(m.copied_at).toLocaleString('ru-RU')+' · скопировал: '+(m.copier?.full_name||'—')+(m.is_additional?' · дополнительное':'');d.append(p);
       if(profile?.role==='employee'&&m.copied_by_employee_id===employee.id){const undo=document.createElement('button');undo.className='danger';undo.style.marginTop='5px';undo.textContent='Отменить ошибочное копирование';undo.onclick=()=>cancelSmsMessage(m.id,l.id,m.stage_before,m.stage_after,l.line_kind,m.line_last_action_before,m.customer_last_activity_before,m.line_status_before,m.line_completed_at_before);d.append(undo);}
     });
     body.append(d);
   });
 }
-function updateSmsTemplateFields(){const key=$('smsTemplate')?.value;$('smsConfigFields')?.classList.toggle('hidden',key!=='configuration');previewSms();}
-function previewSms(){
-  if(!smsOrder||!smsCustomer)return;
-  const key=$('smsTemplate').value,t=smsTemplates[key],store=stores.find(s=>s.id===(profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id))||stores.find(s=>s.id===smsCustomer.primary_store_id);
-  const data={name:smsCustomer.full_name,employee:employee?.full_name||'сотрудник',store:store?.name||'Магазин',phone:store?.phone||'+7 (919) 381-77-25',address:store?.warehouse_address||'АДРЕС СКЛАДА',city:(store?.warehouse_city==='Краснодар'?'Краснодаре':store?.warehouse_city==='Екатеринбург'?'Екатеринбурге':store?.warehouse_city||'Екатеринбурге'),cityGenitive:(store?.warehouse_city==='Краснодар'?'Краснодара':store?.warehouse_city==='Екатеринбург'?'Екатеринбурга':store?.warehouse_city||'Екатеринбурга'),order:smsOrder.order_number,isDanil:employee?.full_name==='Лаптев Данил',link1:$('smsLink1')?.value||'ССЫЛКА 1',link2:$('smsLink2')?.value||'',yandex:store?.review_yandex_url||'',gis:store?.review_2gis_url||''};
-  $('smsPreview').textContent=t.text(data);
-}
+
 async function copySmsMessage(){
   if(profile?.role!=='employee'||!employee||!day?.store_id){msg('Копировать сообщения может сотрудник с активным рабочим днём.','notice error');return;}
   const key=$('smsTemplate').value,t=smsTemplates[key],store=stores.find(s=>s.id===day.store_id);
@@ -1649,6 +1620,66 @@ async function copySmsMessage(){
   if(lineSaved.error){await sb.from('sms_messages').delete().eq('id',insMsg.data.id);if(!main)await sb.from('sms_lines').delete().eq('id',line.id);if(customerActivityBefore)await sb.from('sms_customers').update({last_activity_at:customerActivityBefore}).eq('id',smsCustomer.id);msg('SMS скопировано, но запись не удалось завершить. Повтори действие. '+lineSaved.error.message,'notice error');return;}
   smsCustomer.last_activity_at=new Date().toISOString();
   await loadSmsLines();renderSmsOrder();msg('SMS скопировано и сохранено в истории.','notice success');
+}async function copySmsMessage(){
+  if(profile?.role!=='employee'||!employee||!day?.store_id){msg('Копировать сообщения может сотрудник с активным рабочим днём.','notice error');return;}
+  const key=$('smsTemplate')?.value,t=smsTemplates[key];
+  if(!t){msg('Сначала выберите шаблон.','notice error');return;}
+  if(key==='configuration'&&!$('smsLink1')?.value.trim()){msg('Для шаблона «Конфигурация» нужна ссылка на конфигурацию №1.','notice error');return;}
+  try{
+    const loaded=await sb.from('sms_lines').select('*').eq('order_id',smsOrder.id);
+    if(loaded.error)throw loaded.error;
+    let existing=loaded.data||[];
+    // Удаляем осиротевшие линии (без сообщений), оставшиеся после прежних неудачных отмен.
+    for(const orphan of existing){
+      const count=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('line_id',orphan.id);
+      if(count.error)throw count.error;
+      if((count.count||0)===0){
+        const clean=await sb.from('sms_lines').delete().eq('id',orphan.id).select('id');
+        if(clean.error)throw clean.error;
+        if(clean.data?.length)existing=existing.filter(x=>x.id!==orphan.id);
+      }
+    }
+    const main=existing.find(x=>x.line_kind==='main');
+    let line=null,stageBefore=null,stageAfter=null,complete=false,isAdditional=false;
+    if(t.standalone){
+      if(existing.some(x=>x.line_kind==='standalone'&&x.initial_stage===key)){
+        msg('Самостоятельный шаблон «'+t.name+'» уже отправлялся. Если это ошибка, отмените его в истории.','notice error');return;
+      }
+      const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'standalone',status:'completed',initial_stage:key,current_stage:key,completed_at:new Date().toISOString(),completed_by_employee_id:employee.id}).select('*').single();
+      if(ins.error)throw ins.error;line=ins.data;complete=true;
+    }else{
+      if(key==='warehouse_delivery'&&!main){msg('Шаблон «На складе доставка» нельзя выбрать первым. Сначала используйте «Принято».','notice error');return;}
+      if(key==='cdek'&&!main){msg('Шаблон «Принято СДЭК» нельзя выбрать первым. Сначала используйте «Принято».','notice error');return;}
+      if(!main){
+        if(!t.start){msg('Этот шаблон нельзя использовать для начала основной цепочки.','notice error');return;}
+        const hasConfig=existing.some(x=>x.line_kind==='standalone'&&x.initial_stage==='configuration');
+        const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:'active',initial_stage:hasConfig?'configuration':key,current_stage:key,started_after_configuration:hasConfig}).select('*').single();
+        if(ins.error)throw ins.error;line=ins.data;stageBefore=hasConfig?'configuration':null;stageAfter=key;
+      }else{
+        if(main.status==='completed'){msg('Основная цепочка уже завершена. Самостоятельные шаблоны можно отправлять отдельно.','notice error');return;}
+        line=main;
+        if(main.current_stage==='accepted'&&['warehouse_pickup','warehouse_delivery','cdek'].includes(key)){stageBefore='accepted';stageAfter=key;}
+        else if(main.current_stage==='configuration'&&['warehouse_pickup','dispatch','accepted'].includes(key)){stageBefore='configuration';stageAfter=key;}
+        else if(['warehouse_pickup','warehouse_delivery','dispatch','cdek'].includes(main.current_stage)&&key==='review'){stageBefore=main.current_stage;stageAfter='review';complete=true;}
+        else{msg('Шаблон «'+t.name+'» сейчас недоступен. Текущий этап: '+(smsTemplates[main.current_stage]?.name||main.current_stage)+'. Выберите подходящий следующий этап или самостоятельный шаблон.','notice error');return;}
+      }
+    }
+    const rendered=$('smsPreview')?.textContent||'';
+    const customerActivityBefore=smsCustomer.last_activity_at;
+    try{await navigator.clipboard.writeText(rendered);}catch(e){
+      if(line){const cleanup=await sb.from('sms_lines').delete().eq('id',line.id).select('id');}
+      msg('Браузер не разрешил копирование. Разрешите доступ к буферу обмена и повторите.','notice error');return;
+    }
+    const insMsg=await sb.from('sms_messages').insert({line_id:line.id,order_id:smsOrder.id,template_key:key,rendered_text:rendered,copied_by_employee_id:employee.id,is_additional:isAdditional,stage_before:stageBefore,stage_after:stageAfter,line_last_action_before:main?.last_action_at||null,customer_last_activity_before:customerActivityBefore,line_status_before:main?.status||null,line_completed_at_before:main?.completed_at||null}).select('id').single();
+    if(insMsg.error){await sb.from('sms_lines').delete().eq('id',line.id);throw insMsg.error;}
+    const patch={last_action_at:new Date().toISOString()};
+    if(stageAfter){patch.current_stage=stageAfter;patch.status=complete?'completed':'active';patch.completed_at=complete?new Date().toISOString():null;patch.completed_by_employee_id=complete?employee.id:null;}
+    const saved=await sb.from('sms_lines').update(patch).eq('id',line.id).select('id');
+    if(saved.error||!saved.data?.length){await sb.from('sms_messages').delete().eq('id',insMsg.data.id);await sb.from('sms_lines').delete().eq('id',line.id);throw(saved.error||new Error('Не удалось обновить этап линии'));}
+    smsCustomer.last_activity_at=new Date().toISOString();
+    await loadSmsLines();renderSmsOrder();
+    msg('SMS скопировано и сохранено в истории.','notice success');
+  }catch(e){msg('Не удалось сохранить SMS: '+(e.message||String(e)),'notice error');}
 }
 async function loadSmsLines(){
   if(!smsOrder)return;
