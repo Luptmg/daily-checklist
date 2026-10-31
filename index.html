@@ -1276,7 +1276,7 @@ ${d.address}
 📞 ${d.phone}`}
 };
 let smsCustomer=null,smsOrder=null,smsLines=[],smsStore=null,smsDraftKey=null;
-function smsNormalizePhone(v){return String(v||'').replace(/\\D/g,'');}
+function smsNormalizePhone(v){return String(v||'').replace(/\D/g,'');}
 function smsAgo(v){
   const days=Math.floor((Date.now()-new Date(v).getTime())/86400000);
   if(days<=0)return 'Последнее действие: сегодня';
@@ -1325,7 +1325,7 @@ async function searchSmsCustomers(){
   root.textContent='Поиск…';
   try{
     const [customers,orders]=await Promise.all([
-      digits.length>=5?sb.from('sms_customers').select('id,full_name,phone,primary_store_id,last_activity_at').ilike('phone_normalized','%'+digits+'%').limit(20):Promise.resolve({data:[],error:null}),
+      digits.length>=3?sb.from('sms_customers').select('id,full_name,phone,primary_store_id,last_activity_at').ilike('phone_normalized','%'+digits+'%').limit(20):Promise.resolve({data:[],error:null}),
       sb.from('sms_orders').select('id,order_number,customer_id').ilike('order_number','%'+term+'%').limit(20)
     ]);
     if(customers.error)throw customers.error;if(orders.error)throw orders.error;
