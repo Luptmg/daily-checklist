@@ -88,6 +88,9 @@ textarea{display:block;width:100%;padding:13px;margin:10px 0;border:1px solid va
 .sms-history-line{padding:10px 0;border-bottom:1px solid var(--border)}
 .sms-history-line:last-child{border-bottom:0}
 .sms-copy-button{margin-top:8px}
+.sms-search-toggle{width:44px;height:44px;min-width:44px;padding:0;display:inline-flex;align-items:center;justify-content:center;background:var(--primary-soft);color:var(--primary);font-size:22px;border:1px solid var(--border);border-radius:12px}
+.sms-search-toggle:focus-visible{outline:3px solid var(--progress);outline-offset:2px}
+.sms-search-card{margin-top:10px}
 .sms-order-modal{position:fixed;inset:0;z-index:1010;background:#000b;display:flex;align-items:center;justify-content:center;padding:14px;overflow-y:auto}.sms-order-dialog{position:relative;width:min(760px,100%);max-height:calc(100dvh - 28px);overflow-y:auto;background:var(--page);border:1px solid var(--border);border-radius:18px;padding:16px;box-shadow:0 18px 60px #0008}.sms-order-dialog .sms-order-card{margin:0}.sms-customer-modal{position:fixed;inset:0;z-index:1000;background:#0009;display:flex;align-items:center;justify-content:center;padding:14px;overflow-y:auto}
 .sms-customer-dialog{position:relative;width:min(760px,100%);max-height:calc(100dvh - 28px);overflow-y:auto;background:var(--page);border:1px solid var(--border);border-radius:18px;padding:16px;box-shadow:0 18px 60px #0006}
 .sms-modal-close{position:sticky;top:0;z-index:5;display:flex;justify-content:flex-end;margin:-4px -4px 8px}
@@ -231,15 +234,15 @@ body.sms-modal-open{overflow:hidden}
       <div id="historyList"></div>
     </section>
     <section id="smsPage" class="card hidden">
-      <div class="row"><h2>Сообщения клиентам</h2></div>
-      <div id="smsAdminControls" class="hidden"></div><div id="smsAdminStats" class="hidden"></div>
-      <div id="smsLineBoards"></div>
-      <div class="card">
+      <div class="row sms-page-heading"><h2>Сообщения клиентам</h2><button id="smsSearchToggle" class="sms-search-toggle" type="button" onclick="toggleSmsSearch()" aria-label="Открыть поиск" aria-expanded="false" title="Поиск">⌕</button></div>
+      <div id="smsSearchCard" class="card sms-search-card hidden">
         <h2>Поиск клиента или заказа</h2>
-        <input id="smsSearch" placeholder="Телефон клиента или номер заказа">
+        <input id="smsSearch" placeholder="Телефон клиента или номер заказа" onkeydown="if(event.key==='Enter')searchSmsCustomers()">
         <button class="primary" type="button" onclick="searchSmsCustomers()">Найти</button>
         <div id="smsSearchResults"></div>
       </div>
+      <div id="smsAdminControls" class="hidden"></div><div id="smsAdminStats" class="hidden"></div>
+      <div id="smsLineBoards"></div>
       <div id="smsCreateArea" class="hidden">
         <div class="sms-create-heading"><h3>Новая карточка</h3><button class="primary sms-create-toggle" type="button" onclick="toggleSmsCreateForm(false)" aria-label="Закрыть форму">×</button></div>
         <div id="smsCreateCard" class="card sms-create-form">
@@ -1288,6 +1291,7 @@ async function showSms(){
   $('smsAdminStats').classList.toggle('hidden',profile?.role!=='admin');
   $('smsAdminControls').classList.toggle('hidden',profile?.role!=='admin');
   $('smsCreateLauncher').classList.toggle('hidden',profile?.role!=='employee');$('smsCreateArea').classList.add('hidden');
+  toggleSmsSearch(false);
   if(profile?.role==='admin'&&!$('smsAdminStore')){
     const controls=$('smsAdminControls');
     controls.innerHTML='<div class="sms-grid"><div><label>Магазин</label><select id="smsAdminStore" onchange="applySmsAdminFilters()"><option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('')+'</select></div><div><label>Сотрудник</label><select id="smsAdminEmployee" onchange="applySmsAdminFilters()"><option value="">Все сотрудники</option></select></div><div><label>С даты</label><input id="smsStatFrom" type="date" onchange="applySmsAdminStatsFilter()"></div><div><label>По дату</label><input id="smsStatTo" type="date" onchange="applySmsAdminStatsFilter()"></div></div>';
@@ -1295,6 +1299,16 @@ async function showSms(){
     if(!er.error)er.data.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.full_name;$('smsAdminEmployee').append(o);});
   }
   await loadSmsHome();
+}
+function toggleSmsSearch(force){
+  const panel=$('smsSearchCard'),button=$('smsSearchToggle');
+  if(!panel||!button)return;
+  const open=typeof force==='boolean'?force:panel.classList.contains('hidden');
+  panel.classList.toggle('hidden',!open);
+  button.setAttribute('aria-expanded',String(open));
+  button.setAttribute('aria-label',open?'Скрыть поиск':'Открыть поиск');
+  button.title=open?'Скрыть поиск':'Поиск';
+  if(open)setTimeout(()=> $('smsSearch')?.focus(),0);
 }
 function applySmsAdminFilters(){loadSmsAdminStats();loadSmsLineBoards();}
 function applySmsAdminStatsFilter(){loadSmsAdminStats();}
