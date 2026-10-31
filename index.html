@@ -1027,9 +1027,9 @@ function fillScheduleStoreFilter(useDefault=false){
     .toLocaleLowerCase('ru-RU')
     .replace(/тц|торговый центр/g,'')
     .replace(/[«»"']/g,'')
-    .replace(/[^\\p{L}\\p{N}]+/gu,' ')
+    .replace(/[^\p{L}\p{N}]+/gu,' ')
     .trim()
-    .replace(/\\s+/g,' ');
+    .replace(/\s+/g,' ');
   const preferredKey=normalizeStoreName(preferred);
   const preferredScheduleStore=preferredKey
     ?availableStores.find(name=>{
@@ -1603,7 +1603,7 @@ function smsAgo(v){
   return 'Последнее действие: '+Math.floor(days/30)+' мес. назад';
 }
 function smsEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function smsManagerFirstName(fullName){const parts=String(fullName||'').trim().split(/\\s+/).filter(Boolean);return parts.length>1?parts[1]:parts[0]||'';}
+function smsManagerFirstName(fullName){const parts=String(fullName||'').trim().split(/\s+/).filter(Boolean);return parts.length>1?parts[1]:parts[0]||'';}
 
 async function showSms(){
   setActiveNav('smsNav');
