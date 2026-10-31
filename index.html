@@ -1008,16 +1008,19 @@ function fillScheduleFilters(){
     option.textContent=month.name+' '+month.year;
     monthSelect.append(option);
   });
+  // При каждом новом открытии календаря начинаем с текущего месяца.
   monthSelect.value=current;
-  fillScheduleStoreFilter();
+  fillScheduleStoreFilter(true);
 }
 
-function fillScheduleStoreFilter(){
+function fillScheduleStoreFilter(useDefault=false){
   const monthId=$('scheduleMonth').value;
   const storeSelect=$('scheduleStore');
   const oldStore=storeSelect.value;
   const records=(scheduleApiData?.schedules||[]).filter(x=>x.monthId===monthId);
   const availableStores=[...new Set(records.map(x=>x.store).filter(Boolean))];
+  const primary=stores.find(x=>x.id===employee?.primary_store_id);
+  const preferred=primary?.name;
   storeSelect.innerHTML='';
   if(profile?.role==='admin'&&availableStores.length>1){
     const all=document.createElement('option');
@@ -1031,18 +1034,17 @@ function fillScheduleStoreFilter(){
     option.textContent=name;
     storeSelect.append(option);
   });
-  if(oldStore&&[...storeSelect.options].some(x=>x.value===oldStore)){
+
+  // При открытии сотрудник видит свой основной магазин, администратор — все.
+  // При ручном переключении месяца/магазина сохраняем выбор, если он доступен.
+  if(!useDefault&&oldStore&&[...storeSelect.options].some(x=>x.value===oldStore)){
     storeSelect.value=oldStore;
+  }else if(profile?.role==='admin'){
+    storeSelect.value=availableStores.length>1?'__all__':(availableStores[0]||'');
+  }else if(preferred&&[...storeSelect.options].some(x=>x.value===preferred)){
+    storeSelect.value=preferred;
   }else{
-    const primary=stores.find(x=>x.id===employee?.primary_store_id);
-    const preferred=primary?.name;
-    if(profile?.role!=='admin'&&preferred&&[...storeSelect.options].some(x=>x.value===preferred)){
-      storeSelect.value=preferred;
-    }else{
-      storeSelect.value=profile?.role==='admin'&&availableStores.length>1
-        ?'__all__'
-        :(availableStores[0]||'');
-    }
+    storeSelect.value=availableStores[0]||'';
   }
 }
 
