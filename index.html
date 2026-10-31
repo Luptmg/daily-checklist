@@ -359,7 +359,7 @@ const sections = [
   }
 ];
 
-let user=null, profile=null, employee=null, stores=[], day=null, progress={}, activeSection=0, taskIndex=0, dayStore=null;
+let user=null, profile=null, employee=null, scheduleEmployee=null, stores=[], day=null, progress={}, activeSection=0, taskIndex=0, dayStore=null;
 const $ = id => document.getElementById(id);
 
 function msg(text,type='notice'){
@@ -547,16 +547,18 @@ async function boot(){
 
     const savedSection=(()=>{try{return localStorage.getItem('dailyChecklistSection:'+user.id)||'home';}catch(e){return 'home';}})();
     day=null;dayStore=null;progress={};
-    if(profile.role==='employee'){
-      if(!profile.employee_id)throw new Error('У сотрудника не указан employee_id в profiles.');
+    employee=null;
+    scheduleEmployee=null;
+    if(profile.employee_id){
       const e=await sb.from('employees')
         .select('id,full_name,primary_store_id,active')
         .eq('id',profile.employee_id).single();
       if(e.error)throw e.error;
       if(!e.data.active)throw new Error('Учётная запись сотрудника отключена.');
-      employee=e.data;
-    }else{
-      employee=null;
+      scheduleEmployee=e.data;
+      if(profile.role==='employee')employee=e.data;
+    }else if(profile.role==='employee'){
+      throw new Error('У сотрудника не указан employee_id в profiles.');
     }
 
     const st=await sb.from('stores').select('id,name,city,timezone,warehouse_address,warehouse_city,review_yandex_url,review_2gis_url,phone').order('name');
@@ -1019,7 +1021,7 @@ function fillScheduleStoreFilter(useDefault=false){
   const oldStore=storeSelect.value;
   const records=(scheduleApiData?.schedules||[]).filter(x=>x.monthId===monthId);
   const availableStores=[...new Set(records.map(x=>x.store).filter(Boolean))];
-  const primary=stores.find(x=>x.id===employee?.primary_store_id);
+  const primary=stores.find(x=>x.id===scheduleEmployee?.primary_store_id);
   const preferred=primary?.name;
   storeSelect.innerHTML='';
   if(profile?.role==='admin'&&availableStores.length>1){
@@ -1039,6 +1041,8 @@ function fillScheduleStoreFilter(useDefault=false){
   // При ручном переключении месяца/магазина сохраняем выбор, если он доступен.
   if(!useDefault&&oldStore&&[...storeSelect.options].some(x=>x.value===oldStore)){
     storeSelect.value=oldStore;
+  }else if(profile?.role==='admin'&&preferred&&[...storeSelect.options].some(x=>x.value===preferred)){
+    storeSelect.value=preferred;
   }else if(profile?.role==='admin'){
     storeSelect.value=availableStores.length>1?'__all__':(availableStores[0]||'');
   }else if(preferred&&[...storeSelect.options].some(x=>x.value===preferred)){
