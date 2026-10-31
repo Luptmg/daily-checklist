@@ -1065,7 +1065,7 @@ function scheduleEmployeeColor(name){
 }
 
 function scheduleDisplayName(fullName){
-  const parts=String(fullName||'').trim().split(/\\s+/).filter(Boolean);
+  const parts=String(fullName||'').trim().split(/\s+/).filter(Boolean);
   if(parts.length>=2)return parts[1]+' '+parts[0];
   return parts[0]||'Сотрудник';
 }
