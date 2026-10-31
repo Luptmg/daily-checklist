@@ -1538,6 +1538,7 @@ function getSmsRecommendedTemplateKeys(){
   const main=smsLines.find(l=>l.line_kind==='main');
   if(smsOutOfTurnMode)return Object.keys(smsTemplates);
   if(!main)return Object.entries(smsTemplates).filter(([k,v])=>k==='configuration'||k==='review'||v.start===true).map(([k])=>k);
+  if(main.current_stage==='review')return ['thanks'];
   if(main.status==='completed')return [];
   const queues={
     configuration:['warehouse_pickup','dispatch','accepted'],
@@ -1676,11 +1677,12 @@ async function copySmsMessage(){
         const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:startsCompleted?'completed':'active',initial_stage:key,current_stage:key,started_after_configuration:false,completed_at:startsCompleted?new Date().toISOString():null,completed_by_employee_id:startsCompleted?employee.id:null}).select('*').single();
         if(ins.error)throw ins.error;line=ins.data;createdLine=true;stageAfter=key;complete=startsCompleted;
       }else{
-        if(main.status==='completed'){msg('Основная цепочка уже завершена. Используйте режим «Шаблоны вне очереди» для дополнительных сообщений.','notice error');return;}
+        if(main.status==='completed'&&!(main.current_stage==='review'&&key==='thanks')){msg('Основная цепочка уже завершена. Используйте режим «Шаблоны вне очереди» для дополнительных сообщений.','notice error');return;}
         line=main;
         if(main.current_stage==='accepted'&&['warehouse_pickup','warehouse_delivery'].includes(key)){stageBefore='accepted';stageAfter=key;}
         else if(main.current_stage==='configuration'&&['warehouse_pickup','dispatch','accepted'].includes(key)){stageBefore='configuration';stageAfter=key;}
         else if(['warehouse_pickup','warehouse_delivery','dispatch','cdek'].includes(main.current_stage)&&key==='review'){stageBefore=main.current_stage;stageAfter='review';complete=true;}
+        else if(main.current_stage==='review'&&key==='thanks'){stageBefore='review';stageAfter='thanks';complete=true;}
         else{msg('Шаблон «'+t.name+'» сейчас недоступен. Текущий этап: '+(smsTemplates[main.current_stage]?.name||main.current_stage)+'. Выберите подходящий следующий этап или самостоятельный шаблон.','notice error');return;}
       }
     }
