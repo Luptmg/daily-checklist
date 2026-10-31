@@ -1579,9 +1579,14 @@ function previewSms(){
 }
 function updateSmsTemplateFields(){
   const key=$('smsTemplate')?.value;
-  $('smsConfigFields')?.classList.toggle('hidden',key!=='configuration');
+  const fields=$('smsConfigFields');
+  if(fields){
+    fields.classList.toggle('hidden',key!=='configuration');
+    const link1=$('smsLink1');
+    if(link1)link1.required=key==='configuration';
+  }
   const hint=$('smsTemplateHint');
-  if(hint)hint.textContent=key&&smsTemplates[key]?.standalone?'Самостоятельное сообщение: будет создана отдельная линия.':key==='warehouse_delivery'||key==='cdek'?'Этот шаблон доступен только на соответствующем этапе основной цепочки.':'Выбранный шаблон будет проверен по текущему этапу заказа.';
+  if(hint)hint.textContent=key==='configuration'?'Укажите обязательную ссылку на конфигурацию №1. Вторую ссылку можно добавить по желанию.':key&&smsTemplates[key]?.standalone?'Самостоятельное сообщение: будет создана отдельная линия.':key==='warehouse_delivery'||key==='cdek'?'Этот шаблон доступен только на соответствующем этапе основной цепочки.':'Выбранный шаблон будет проверен по текущему этапу заказа.';
   previewSms();
 }
 function renderSmsLines(){
@@ -1606,7 +1611,16 @@ async function copySmsMessage(){
   if(profile?.role!=='employee'||!employee||!day?.store_id){msg('Копировать сообщения может сотрудник с активным рабочим днём.','notice error');return;}
   const key=$('smsTemplate')?.value,t=smsTemplates[key];
   if(!t){msg('Сначала выберите шаблон.','notice error');return;}
-  if(key==='configuration'&&!$('smsLink1')?.value.trim()){msg('Для шаблона «Конфигурация» нужна ссылка на конфигурацию №1.','notice error');return;}
+  if(key==='configuration'){
+    const fields=$('smsConfigFields'),link1=$('smsLink1');
+    fields?.classList.remove('hidden');
+    if(!link1||!link1.value.trim()){
+      msg('Укажите ссылку в поле «Ссылка на конфигурацию №1» и повторите копирование.','notice error');
+      link1?.focus();
+      link1?.scrollIntoView({behavior:'smooth',block:'center'});
+      return;
+    }
+  }
   try{
     const loaded=await sb.from('sms_lines').select('*').eq('order_id',smsOrder.id);
     if(loaded.error)throw loaded.error;
