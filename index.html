@@ -154,12 +154,23 @@ body.sms-modal-open{overflow:hidden}
       <p class="settings-description">Одна учётная запись с двумя ролями. Переключение доступно только владельцу этой учётной записи.</p>
       <button id="roleSwitchButton" class="secondary" type="button" onclick="switchAccountRole()">Переключить роль</button>
     </div>
+    <div id="maintenanceSettings" class="hidden">
+      <div class="settings-divider"></div>
+      <div class="settings-label">Доступ к приложению</div>
+      <p id="maintenanceDescription" class="settings-description">Временно закрыть приложение для остальных сотрудников.</p>
+      <button id="maintenanceToggleButton" class="secondary" type="button" onclick="toggleMaintenanceMode()">Включить технические работы</button>
+    </div>
     <div id="logoutSettingsDivider" class="settings-divider"></div>
     <button id="logoutSettingsButton" class="danger" type="button" onclick="signOut()">Выйти</button>
   </div>
 </header>
 <main>
   <div id="statusMessage" class="notice hidden" role="status"></div>
+  <section id="maintenancePage" class="card hidden" style="max-width:560px;margin:12vh auto;text-align:center">
+    <h2>Ведутся технические работы</h2>
+    <p class="muted">Пожалуйста, попробуйте зайти позже.</p>
+    <button class="secondary" type="button" onclick="signOut()">Выйти из аккаунта</button>
+  </section>
   <section id="configWarning" class="card hidden">
     <h2>Нужно настроить подключение</h2>
     <p>В коде не указаны публичные параметры Supabase. Проверь SUPABASE_URL и SUPABASE_ANON_KEY в начале скрипта. Используй только publishable/anon key, не service_role.</p>
@@ -457,6 +468,7 @@ function showPasswordChange(){
 }
 function hideApp(){
   closeSettingsMenu();
+  $('maintenancePage').classList.add('hidden');
   $('app').classList.add('hidden');
   $('auth').classList.remove('hidden');
   $('settingsLoginHint').classList.remove('hidden');
@@ -480,6 +492,66 @@ function showApp(){
   if(canSwitch)$('roleSwitchButton').textContent=profile.role==='admin'
     ?'Переключиться в режим сотрудника'
     :'Переключиться в режим администратора';
+  $('maintenanceSettings').classList.toggle('hidden',user?.id!=='57caa325-ad50-447b-9b23-df6ec1ee15dd');
+}
+
+function showMaintenancePage(){
+  closeSettingsMenu();
+  $('app').classList.add('hidden');
+  $('auth').classList.add('hidden');
+  $('maintenancePage').classList.remove('hidden');
+}
+
+function isMaintenanceError(error){
+  const message=String(error?.message||'');
+  return error?.status===503||error?.code==='MAINTENANCE_MODE'||message.includes('MAINTENANCE_MODE')||message.includes('Ведутся технические работы');
+}
+
+async function refreshMaintenanceControl(){
+  if(user?.id!=='57caa325-ad50-447b-9b23-df6ec1ee15dd')return;
+  const button=$('maintenanceToggleButton');
+  const description=$('maintenanceDescription');
+  button.disabled=true;
+  try{
+    const {data,error}=await sb.rpc('get_maintenance_mode');
+    if(error)throw error;
+    maintenanceEnabled=!!data;
+    button.textContent=maintenanceEnabled?'Выключить технические работы':'Включить технические работы';
+    description.textContent=maintenanceEnabled
+      ?'Режим включён. Остальные сотрудники видят сообщение о технических работах.'
+      :'При включении доступ останется только у Данила Лаптева.';
+  }catch(err){
+    description.textContent='Не удалось проверить состояние режима: '+(err.message||err);
+  }finally{
+    button.disabled=false;
+  }
+}
+
+let maintenanceEnabled=false;
+async function toggleMaintenanceMode(){
+  if(user?.id!=='57caa325-ad50-447b-9b23-df6ec1ee15dd')return;
+  const nextValue=!maintenanceEnabled;
+  const promptText=nextValue
+    ?'Включить технические работы? Остальные сотрудники потеряют доступ к приложению.'
+    :'Выключить технические работы и вернуть доступ всем сотрудникам?';
+  if(!confirm(promptText))return;
+  const button=$('maintenanceToggleButton');
+  button.disabled=true;
+  try{
+    const {data,error}=await sb.rpc('set_maintenance_mode',{p_enabled:nextValue});
+    if(error)throw error;
+    maintenanceEnabled=!!data;
+    button.textContent=maintenanceEnabled?'Выключить технические работы':'Включить технические работы';
+    $('maintenanceDescription').textContent=maintenanceEnabled
+      ?'Режим включён. Остальные сотрудники видят сообщение о технических работах.'
+      :'При включении доступ останется только у Данила Лаптева.';
+    closeSettingsMenu();
+    msg(maintenanceEnabled?'Режим технических работ включён.':'Доступ для всех сотрудников восстановлен.','notice success');
+  }catch(err){
+    msg('Не удалось изменить режим: '+(err.message||err),'notice error');
+  }finally{
+    button.disabled=false;
+  }
 }
 
 async function switchAccountRole(){
@@ -544,7 +616,10 @@ async function boot(){
       .select('user_id,employee_id,role')
       .eq('user_id',user.id).single();
 
-    if(p.error)throw new Error('Не удалось загрузить профиль: '+p.error.message);
+    if(p.error){
+      if(isMaintenanceError(p.error)){showMaintenancePage();return;}
+      throw new Error('Не удалось загрузить профиль: '+p.error.message);
+    }
     profile=p.data;
     if(!['admin','employee'].includes(profile.role))throw new Error('У профиля неизвестная роль.');
 
@@ -569,6 +644,7 @@ async function boot(){
     stores=st.data||[];
     fillStoreSelects();
     showApp();
+    await refreshMaintenanceControl();
 
     if(profile.role==='admin'){
       const dashboardDateInput=$('dashboardDateInput');if(dashboardDateInput)dashboardDateInput.value=todayKey();
