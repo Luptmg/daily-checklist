@@ -1606,7 +1606,7 @@ async function copySmsMessage(){
       }else{
         if(main.status==='completed'){msg('Основная цепочка уже завершена. Самостоятельные шаблоны можно отправлять отдельно.','notice error');return;}
         line=main;
-        if(main.current_stage==='accepted'&&['warehouse_pickup','warehouse_delivery','cdek'].includes(key)){stageBefore='accepted';stageAfter=key;}
+        if(main.current_stage==='accepted'&&['warehouse_pickup','warehouse_delivery'].includes(key)){stageBefore='accepted';stageAfter=key;}
         else if(main.current_stage==='configuration'&&['warehouse_pickup','dispatch','accepted'].includes(key)){stageBefore='configuration';stageAfter=key;}
         else if(['warehouse_pickup','warehouse_delivery','dispatch','cdek'].includes(main.current_stage)&&key==='review'){stageBefore=main.current_stage;stageAfter='review';complete=true;}
         else{msg('Шаблон «'+t.name+'» сейчас недоступен. Текущий этап: '+(smsTemplates[main.current_stage]?.name||main.current_stage)+'. Выберите подходящий следующий этап или самостоятельный шаблон.','notice error');return;}
