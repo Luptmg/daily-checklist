@@ -1649,10 +1649,10 @@ async function copySmsMessage(){
       if(ins.error)throw ins.error;line=ins.data;complete=true;
     }else{
       if(key==='warehouse_delivery'&&!main){msg('Шаблон «На складе доставка» нельзя выбрать первым. Сначала используйте «Принято».','notice error');return;}
-      if(key==='cdek'&&!main){msg('Шаблон «Принято СДЭК» нельзя выбрать первым. Сначала используйте «Принято».','notice error');return;}
       if(!main){
         if(!t.start){msg('Этот шаблон нельзя использовать для начала основной цепочки.','notice error');return;}
         const hasConfig=existing.some(x=>x.line_kind==='standalone'&&x.initial_stage==='configuration');
+        if(hasConfig&&key==='cdek'){msg('После конфигурации основную цепочку можно начать с «На складе самовывоз», «Доставка со склада» или «Принято».','notice error');return;}
         const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:'active',initial_stage:hasConfig?'configuration':key,current_stage:key,started_after_configuration:hasConfig}).select('*').single();
         if(ins.error)throw ins.error;line=ins.data;stageBefore=hasConfig?'configuration':null;stageAfter=key;
       }else{
@@ -1697,13 +1697,9 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
   try{
     const current=await sb.from('sms_messages').select('id,order_id,line_id,copied_at,copied_by_employee_id').eq('id',messageId).single();
     if(current.error)throw current.error;
-    const newer=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('order_id',current.data.order_id).gt('copied_at',current.data.copied_at);
+    const newer=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('line_id',lineId).gt('copied_at',current.data.copied_at);
     if(newer.error)throw newer.error;
     if(newer.count>0){msg('Можно отменить только последнее копирование в заказе.','notice error');return;}
-    const freshCustomer=await sb.from('sms_customers').select('last_activity_at').eq('id',smsCustomer.id).single();
-    if(freshCustomer.error)throw freshCustomer.error;
-    if(customerLastBefore&&freshCustomer.data.last_activity_at&&new Date(freshCustomer.data.last_activity_at)-new Date(current.data.copied_at)>5000){msg('После этого копирования были другие действия с клиентом. Отмена старого действия не разрешена.','notice error');return;}
-
     // Проверяем, что удаление действительно затронуло сообщение. При отказе RLS
     // не продолжаем менять линию и не показываем ложный успех.
     const del=await sb.from('sms_messages').delete().eq('id',messageId).select('id');
@@ -1723,11 +1719,8 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
       if(u.error)throw u.error;
       if(!u.data||u.data.length!==1)throw new Error('Не удалось восстановить состояние линии.');
     }
-    if(customerLastBefore){
-      const restore=await sb.from('sms_customers').update({last_activity_at:customerLastBefore}).eq('id',smsCustomer.id);
-      if(restore.error)throw restore.error;
-    }
-    smsCustomer.last_activity_at=customerLastBefore||smsCustomer.last_activity_at;
+    // Не откатываем last_activity_at: отмена одной линии не должна затирать
+    // более поздние действия по другим линиям этого клиента.
     await openSmsCustomer(smsCustomer.id,smsOrder.id);
     msg('Ошибочное копирование отменено.','notice success');
   }catch(e){msg('Не удалось отменить копирование: '+e.message,'notice error');}
