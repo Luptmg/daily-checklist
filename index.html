@@ -1677,6 +1677,7 @@ async function loadSmsLines(){
 
 async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind,lineLastBefore,customerLastBefore,lineStatusBefore,lineCompletedBefore){
   if(!confirm('Удалить ошибочное копирование из истории и отменить его влияние на линию?'))return;
+  let dataChanged=false;
   try{
     const current=await sb.from('sms_messages').select('id,order_id,line_id,copied_at,copied_by_employee_id').eq('id',messageId).single();
     if(current.error)throw current.error;
@@ -1688,6 +1689,7 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
     const del=await sb.from('sms_messages').delete().eq('id',messageId).select('id');
     if(del.error)throw del.error;
     if(!del.data||del.data.length!==1)throw new Error('Сообщение не удалено: проверь права удаления в Supabase.');
+    dataChanged=true;
 
     const remaining=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('line_id',lineId);
     if(remaining.error)throw remaining.error;
@@ -1707,8 +1709,17 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
     // Обновляем историю текущего заказа и список без повторного открытия карточки клиента.
     await loadSmsLines();
     await loadSmsLineBoards();
+    dataChanged=false;
     msg('Ошибочное копирование отменено.','notice success');
-  }catch(e){msg('Не удалось отменить копирование: '+e.message,'notice error');}
+  }catch(e){
+    // Даже если следующий шаг частично завершился ошибкой, интерфейс
+    // должен отразить уже удалённое сообщение без перезагрузки страницы.
+    if(dataChanged){
+      try{await loadSmsLines();await loadSmsLineBoards();}
+      catch(refreshError){msg('Данные изменены, но не удалось обновить экран: '+refreshError.message,'notice error');return;}
+    }
+    msg('Не удалось отменить копирование: '+e.message,'notice error');
+  }
 }
 let smsBoardTab='mine';
 function selectSmsBoardTab(tab){smsBoardTab=tab;loadSmsLineBoards();}
