@@ -1519,7 +1519,7 @@ async function selectSmsOrder(id){
   try{
     if(!id||id==='undefined'||id==='null')throw new Error('Не передан ID заказа.');
     step='загрузка заказа';
-    const r=await sb.from('sms_orders').select('id,order_number,created_at').eq('id',id).single();if(r.error)throw r.error;smsOrder=r.data;
+    const r=await sb.from('sms_orders').select('id,order_number,customer_id,created_at').eq('id',id).single();if(r.error)throw r.error;smsOrder=r.data;
     step='загрузка линий заказа';
     const storeId=profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id;
     const lineQuery=sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,is_additional,stage_before,stage_after,line_last_action_before,customer_last_activity_before,line_status_before,line_completed_at_before,copier:employees!sms_messages_copied_by_employee_id_fkey(full_name))').eq('order_id',id).order('created_at',{ascending:false});
@@ -1661,7 +1661,7 @@ async function copySmsMessage(){
       }
     }
     const rendered=$('smsPreview')?.textContent||'';
-    const customerActivityBefore=smsCustomer.last_activity_at;
+    const customerActivityBefore=smsCustomer?.last_activity_at||null;
     try{await navigator.clipboard.writeText(rendered);}catch(e){
       // Удаляем только линию, созданную в этой попытке. Существующую цепочку
       // нельзя затрагивать из-за отказа браузера в доступе к буферу обмена.
@@ -1686,7 +1686,13 @@ async function copySmsMessage(){
       else if(previousLineState)await sb.from('sms_lines').update(previousLineState).eq('id',line.id);
       throw(saved.error||new Error('Не удалось обновить этап линии'));
     }
-    smsCustomer.last_activity_at=new Date().toISOString();
+    const activityAt=new Date().toISOString();
+    const customerId=smsOrder?.customer_id||smsCustomer?.id;
+    if(customerId){
+      const activityUpdate=await sb.from('sms_customers').update({last_activity_at:activityAt}).eq('id',customerId);
+      if(activityUpdate.error)throw new Error('SMS сохранено, но не удалось обновить дату активности клиента: '+activityUpdate.error.message);
+    }
+    if(smsCustomer)smsCustomer.last_activity_at=activityAt;
     await loadSmsLines();renderSmsOrder();await loadSmsLineBoards();
     msg('SMS скопировано и сохранено в истории.','notice success');
   }catch(e){msg('Не удалось сохранить SMS: '+(e.message||String(e)),'notice error');}
