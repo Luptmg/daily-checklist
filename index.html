@@ -1103,6 +1103,18 @@ function getScheduleEmployeeName(employeeName){
   return entry?.[1]||'';
 }
 
+const scheduleStoreNames={
+  'Гринвич':'Екатеринбург Гринвич',
+  'Мега':'Екатеринбург Мега',
+  'Красная Площадь':'Краснодар Красная Площадь'
+};
+
+function getScheduleStoreName(storeName){
+  const key=String(storeName||'').trim().toLocaleLowerCase('ru-RU');
+  const entry=Object.entries(scheduleStoreNames).find(([name])=>name.toLocaleLowerCase('ru-RU')===key);
+  return entry?.[1]||String(storeName||'').trim();
+}
+
 let selectedScheduleDate=null;
 
 function renderPersonalSchedule(month,records){
@@ -1203,7 +1215,10 @@ function renderScheduleCalendar(){
   $('scheduleStore').classList.toggle('hidden',isEmployee);
   if(isEmployee){
     const primary=stores.find(x=>x.id===scheduleEmployee?.primary_store_id);
-    const records=(scheduleApiData.schedules||[]).filter(x=>x.monthId===month.id&&(!primary||x.store===primary.name));
+    const scheduleStoreName=getScheduleStoreName(primary?.name);
+    const records=(scheduleApiData.schedules||[]).filter(x=>
+      x.monthId===month.id&&(!primary||String(x.store||'').trim().toLocaleLowerCase('ru-RU')===scheduleStoreName.toLocaleLowerCase('ru-RU'))
+    );
     renderPersonalSchedule(month,records);
     return;
   }
