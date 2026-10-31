@@ -1553,8 +1553,13 @@ async function copySmsMessage(){
 }
 async function loadSmsLines(){
   if(!smsOrder)return;
-  const r=await sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),employees(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,copier:employees!sms_messages_copied_by_employee_id_fkey(full_name))').eq('order_id',smsOrder.id).order('created_at',{ascending:false});
-  if(r.error)throw r.error;smsLines=r.data||[];renderSmsLines();
+  const storeId=profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id;
+  const q=sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,is_additional,stage_before,stage_after,line_last_action_before,customer_last_activity_before,line_status_before,line_completed_at_before,copier:employees!sms_messages_copied_by_employee_id_fkey(full_name))').eq('order_id',smsOrder.id).order('created_at',{ascending:false});
+  if(storeId)q.eq('store_id',storeId);
+  const r=await q;
+  if(r.error)throw r.error;
+  smsLines=r.data||[];
+  renderSmsLines();
 }
 
 async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind,lineLastBefore,customerLastBefore,lineStatusBefore,lineCompletedBefore){
