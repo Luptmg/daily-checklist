@@ -1037,12 +1037,27 @@ function fillScheduleStoreFilter(useDefault=false){
       return key===preferredKey||key.startsWith(preferredKey+' ')||preferredKey.startsWith(key+' ');
     })
     :null;
+  // Если название магазина в таблице отличается, ищем магазин по самой записи сотрудника.
+  const employeeKey=normalizeStoreName(scheduleEmployee?.full_name);
+  const employeeRecord=scheduleEmployee
+    ?records.find(record=>(record.employees||[]).some(emp=>
+      normalizeStoreName(emp.name)===employeeKey
+    ))
+    :null;
+  const employeeScheduleStore=employeeRecord?.store||null;
+
   storeSelect.innerHTML='';
-  if(profile?.role==='admin'&&availableStores.length>1){
+  if(profile?.role==='admin'&&!scheduleEmployee&&availableStores.length>1){
     const all=document.createElement('option');
     all.value='__all__';
     all.textContent='Все магазины';
     storeSelect.append(all);
+  }
+  if(scheduleEmployee&&!employeeScheduleStore&&!preferredScheduleStore){
+    const placeholder=document.createElement('option');
+    placeholder.value='';
+    placeholder.textContent='Не найден график основного магазина';
+    storeSelect.append(placeholder);
   }
   availableStores.forEach(name=>{
     const option=document.createElement('option');
@@ -1051,21 +1066,22 @@ function fillScheduleStoreFilter(useDefault=false){
     storeSelect.append(option);
   });
 
-  // При открытии сотрудник видит свой основной магазин, администратор — все.
-  // При ручном переключении месяца/магазина сохраняем выбор, если он доступен.
+  // Для связанного сотрудника приоритет — магазин из его собственной записи графика.
+  // Если записи сотрудника нет, не подменяем его магазин первым попавшимся.
   if(!useDefault&&oldStore&&[...storeSelect.options].some(x=>x.value===oldStore)){
     storeSelect.value=oldStore;
-  }else if(profile?.role==='admin'&&preferredScheduleStore&&[...storeSelect.options].some(x=>x.value===preferredScheduleStore)){
+  }else if(scheduleEmployee&&employeeScheduleStore){
+    storeSelect.value=employeeScheduleStore;
+  }else if(scheduleEmployee&&preferredScheduleStore){
     storeSelect.value=preferredScheduleStore;
+  }else if(scheduleEmployee){
+    storeSelect.value='';
   }else if(profile?.role==='admin'){
     storeSelect.value=availableStores.length>1?'__all__':(availableStores[0]||'');
-  }else if(preferredScheduleStore&&[...storeSelect.options].some(x=>x.value===preferredScheduleStore)){
-    storeSelect.value=preferredScheduleStore;
   }else{
     storeSelect.value=availableStores[0]||'';
   }
 }
-
 function onScheduleMonthChange(){
   fillScheduleStoreFilter();
   renderScheduleCalendar();
