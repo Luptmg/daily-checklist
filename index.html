@@ -1087,11 +1087,27 @@ function scheduleDisplayName(fullName){
   return value||'Сотрудник';
 }
 
+// Точное соответствие аккаунтов приложения именам сотрудников в Google Таблице графика.
+const scheduleEmployeeNames={
+  'Лаптев Данил':'Лаптев Данил Романович',
+  'Спицын Слава':'Спицын Вячеслав Николаевич',
+  'Скорынин Максим':'Скорынин Максим Игоревич',
+  'Колпаков Константин':'Колпаков Константин Вячеславович',
+  'Бало Никита':'Бало Никита Владимирович',
+  'Кондратенко Антон':'Кондратенко Антон Сергеевич'
+};
+
+function getScheduleEmployeeName(employeeName){
+  const key=String(employeeName||'').trim().toLocaleLowerCase('ru-RU');
+  const entry=Object.entries(scheduleEmployeeNames).find(([name])=>name.toLocaleLowerCase('ru-RU')===key);
+  return entry?.[1]||'';
+}
+
 let selectedScheduleDate=null;
 
 function renderPersonalSchedule(month,records){
   const root=$('scheduleCalendar');
-  const name=String(scheduleEmployee?.full_name||'').trim().toLocaleLowerCase('ru-RU');
+  const name=getScheduleEmployeeName(scheduleEmployee?.full_name).toLocaleLowerCase('ru-RU');
   const ownRecords=records.map(record=>({
     record,
     employee:(record.employees||[]).find(emp=>String(emp.name||'').trim().toLocaleLowerCase('ru-RU')===name)
