@@ -1613,13 +1613,15 @@ function renderSmsLines(){
   const body=$('smsHistoryBody');
   const visibleLines=smsLines.filter(l=>(l.sms_messages||[]).length>0);
   if(!visibleLines.length){body.innerHTML='<p class="muted">История сообщений пуста. Первое скопированное сообщение появится здесь.</p>';return;}
+  const allMessages=visibleLines.flatMap(l=>(l.sms_messages||[]).map(m=>({...m,_line:l})));
+  const lastMessage=allMessages.sort((a,b)=>new Date(b.copied_at)-new Date(a.copied_at))[0];
   visibleLines.forEach(l=>{
     const d=document.createElement('div');d.className='sms-history-line';
     const status=l.status==='completed'?'Завершена':'Текущая';
     d.innerHTML='<strong>'+(l.line_kind==='main'?'Основная линия':'Самостоятельная линия')+' · '+status+'</strong><div class="small">'+smsEsc(l.stores?.name||'Магазин')+' · Создал: '+smsEsc(l.creator?.full_name||'—')+' · '+smsAgo(l.last_action_at)+'</div>';
     (l.sms_messages||[]).slice().sort((a,b)=>new Date(a.copied_at)-new Date(b.copied_at)).forEach(m=>{
       const p=document.createElement('div');p.className='small';p.textContent=(smsTemplates[m.template_key]?.name||m.template_key)+' · '+new Date(m.copied_at).toLocaleString('ru-RU')+' · скопировал: '+(m.copier?.full_name||'—')+(m.is_additional?' · дополнительное':'');d.append(p);
-      if(profile?.role==='employee'&&m.copied_by_employee_id===employee.id){const undo=document.createElement('button');undo.className='danger';undo.style.marginTop='5px';undo.textContent='Отменить ошибочное копирование';undo.onclick=()=>cancelSmsMessage(m.id,l.id,m.stage_before,m.stage_after,l.line_kind,m.line_last_action_before,m.customer_last_activity_before,m.line_status_before,m.line_completed_at_before);d.append(undo);}
+      if(profile?.role==='employee'&&m.id===lastMessage?.id&&lastMessage.copied_by_employee_id===employee.id){const undo=document.createElement('button');undo.className='danger';undo.style.marginTop='5px';undo.textContent='Отменить последнее копирование';undo.onclick=()=>cancelSmsMessage(m.id,l.id,m.stage_before,m.stage_after,l.line_kind,m.line_last_action_before,m.customer_last_activity_before,m.line_status_before,m.line_completed_at_before);d.append(undo);}
     });
     body.append(d);
   });
@@ -1736,7 +1738,7 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
   try{
     const current=await sb.from('sms_messages').select('id,order_id,line_id,copied_at,copied_by_employee_id').eq('id',messageId).single();
     if(current.error)throw current.error;
-    const newer=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('line_id',lineId).gt('copied_at',current.data.copied_at);
+    const newer=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('order_id',current.data.order_id).gt('copied_at',current.data.copied_at);
     if(newer.error)throw newer.error;
     if(newer.count>0){msg('Можно отменить только последнее копирование в заказе.','notice error');return;}
     // Проверяем, что удаление действительно затронуло сообщение. При отказе RLS
@@ -1763,9 +1765,11 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
     // более поздние действия по другим линиям этого клиента.
     // Обновляем историю текущего заказа и список без повторного открытия карточки клиента.
     await loadSmsLines();
+    smsOutOfTurnMode=false;
+    renderSmsOrder();
     await loadSmsLineBoards();
     dataChanged=false;
-    msg('Ошибочное копирование отменено.','notice success');
+    msg('Последнее копирование отменено. Вы вернулись к предыдущему шагу.','notice success');
   }catch(e){
     // Даже если следующий шаг частично завершился ошибкой, интерфейс
     // должен отразить уже удалённое сообщение без перезагрузки страницы.
