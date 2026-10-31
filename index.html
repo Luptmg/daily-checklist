@@ -122,7 +122,8 @@ body.sms-modal-open{overflow:hidden}
 .admin-filters{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px;margin:12px 0}.admin-filters button{padding:10px 5px;font-size:13px;background:var(--surface-soft);color:var(--text);border:1px solid var(--border)}.admin-filters button.active{background:var(--primary);color:white;border-color:var(--primary)}
 .admin-group-title{font-size:14px;color:var(--muted);margin:20px 0 6px}.admin-employee-row{display:flex;flex-direction:column;align-items:stretch;gap:7px;width:100%;padding:14px 12px;margin:0;border:0;border-bottom:1px solid var(--border);border-radius:0;background:transparent;color:var(--text);text-align:left}.admin-employee-top{display:flex;justify-content:space-between;align-items:center;gap:8px}
 .admin-state-badge{display:inline-block;border-radius:20px;padding:5px 9px;font-size:11px;font-weight:700;white-space:nowrap;background:var(--surface-soft);color:var(--muted)}.admin-state-badge.progress{background:var(--primary-soft);color:var(--primary)}.admin-state-badge.done{background:var(--success);color:var(--success-text)}.admin-state-badge.new{background:var(--table-head);color:var(--muted)}
-.admin-row-progress{display:flex;align-items:center;gap:9px}.admin-row-progress .progress{flex:1;margin:0;height:5px}.admin-row-progress .progress span{display:block;height:100%;background:var(--progress)}.admin-row-progress small{font-size:12px;color:var(--muted);white-space:nowrap}.admin-empty{display:flex;flex-direction:column;gap:6px;padding:22px 12px;text-align:center;color:var(--muted);background:var(--surface-soft);border-radius:12px}.admin-empty strong{color:var(--text)}
+.admin-row-progress{display:flex;align-items:center;gap:9px}.admin-row-progress .progress{flex:1;margin:0;height:5px}.admin-row-progress .progress span{display:block;height:100%;background:var(--progress)}.admin-row-progress small{font-size:12px;color:var(--muted);white-space:nowrap}.schedule-toolbar{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}.schedule-calendar-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}.schedule-weekday{padding:7px 2px;text-align:center;color:var(--muted);font-size:12px;font-weight:700}.schedule-day{min-width:0;min-height:108px;padding:7px;border:1px solid var(--border);border-radius:10px;background:var(--surface-soft)}.schedule-day.empty{background:transparent;border-style:dashed;opacity:.35}.schedule-day-number{font-weight:800;margin-bottom:6px}.schedule-shift{display:flex;justify-content:space-between;gap:4px;align-items:center;margin:4px 0;padding:4px 5px;border-radius:6px;background:var(--surface);font-size:11px;line-height:1.25}.schedule-shift-name{min-width:0;overflow-wrap:anywhere}.schedule-shift-value{flex:0 0 auto;font-weight:800;color:var(--primary)}.schedule-updated{font-size:12px;color:var(--muted);margin-top:10px}.schedule-legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:8px 0}.schedule-error{padding:12px;border-radius:10px;background:var(--notice);color:var(--notice-text)}@media(max-width:650px){.schedule-toolbar{grid-template-columns:1fr}.schedule-calendar-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.schedule-weekday{display:none}.schedule-day{min-height:80px}}
+.admin-empty{display:flex;flex-direction:column;gap:6px;padding:22px 12px;text-align:center;color:var(--muted);background:var(--surface-soft);border-radius:12px}.admin-empty strong{color:var(--text)}
 .admin-detail-heading{margin:18px 0}.admin-detail-heading h2{margin-bottom:5px}.admin-detail-progress{padding:14px;background:var(--surface-soft);border-radius:14px;margin:14px 0 22px}.admin-counts{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-top:12px}.admin-count{display:flex;flex-direction:column;gap:3px;padding:10px 8px;border-radius:10px;background:var(--surface);text-align:center}.admin-count strong{font-size:22px}.admin-count span{font-size:11px;color:var(--muted)}
 .admin-count.done strong{color:var(--success-text)}.admin-count.failed strong{color:var(--danger-text)}.admin-count.pending strong{color:var(--muted)}.admin-accordion{border:1px solid var(--border);border-radius:12px;overflow:hidden;margin:9px 0}.admin-accordion-toggle{display:flex;align-items:center;gap:10px;width:100%;padding:14px;background:var(--surface-soft);color:var(--text);text-align:left}
 .admin-accordion-toggle>span:first-child{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.admin-accordion-toggle small{font-size:12px;color:var(--muted);font-weight:400}.admin-accordion-status{font-size:11px;color:var(--muted);white-space:nowrap}.admin-accordion-body{padding:0 12px}
@@ -178,6 +179,7 @@ body.sms-modal-open{overflow:hidden}
       <button id="homeNav" class="secondary" onclick="goHome()">Главная</button>
       <button id="historyNav" class="secondary" onclick="showHistory()">История</button>
       <button id="smsNav" class="secondary" onclick="showSms()">Сообщения клиентам</button>
+      <button id="scheduleNav" class="secondary" onclick="showScheduleCalendar()">График</button>
     </div>
     <section id="adminHomePage" class="hidden"><div class="card">
       <div class="row"><h2>Рабочие дни</h2></div>
@@ -275,6 +277,17 @@ body.sms-modal-open{overflow:hidden}
         <button class="primary sms-create-toggle" type="button" onclick="toggleSmsCreateForm(true)" aria-label="Создать новую карточку">+</button>
       </div>
       <div id="smsCustomerDetails" class="hidden"></div>
+    </section>
+    <section id="schedulePage" class="card hidden">
+      <div class="row"><h2>График смен</h2><button class="secondary" type="button" onclick="loadScheduleCalendar()">Обновить</button></div>
+      <div class="schedule-toolbar">
+        <div><label for="scheduleMonth">Месяц</label><select id="scheduleMonth" onchange="renderScheduleCalendar()"><option value="">Загрузка…</option></select></div>
+        <div><label for="scheduleStore">Магазин</label><select id="scheduleStore" onchange="renderScheduleCalendar()"><option value="">Загрузка…</option></select></div>
+      </div>
+      <div class="schedule-legend"><span>Число — продолжительность смены в часах</span><span>В — выходной</span></div>
+      <div id="scheduleCalendarStatus" class="muted">Открой раздел, чтобы загрузить график.</div>
+      <div id="scheduleCalendar"></div>
+      <div id="scheduleUpdated" class="schedule-updated"></div>
     </section>
     <section id="passwordPage" class="card hidden">
       <h2>Смена пароля</h2>
@@ -393,14 +406,14 @@ try{savedTheme=localStorage.getItem('dailyChecklistTheme')||'light';}catch(e){}
 applyTheme(savedTheme);
 
 function hidePages(){
-  ['setup','home','work','historyPage','smsPage','adminHomePage','adminHistoryPage','adminWorkdayPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
+  ['setup','home','work','historyPage','smsPage','schedulePage','adminHomePage','adminHistoryPage','adminWorkdayPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
 }
 function setActiveNav(active){
   try{
-    const section=active==='smsNav'?'sms':active==='historyNav'?'history':'home';
+    const section=active==='smsNav'?'sms':active==='historyNav'?'history':active==='scheduleNav'?'schedule':'home';
     if(user?.id)localStorage.setItem('dailyChecklistSection:'+user.id,section);
   }catch(e){}
-  ['homeNav','historyNav','smsNav'].forEach(id=>{
+  ['homeNav','historyNav','smsNav','scheduleNav'].forEach(id=>{
     const el=$(id);
     if(!el)return;
     const selected=id===active;
@@ -557,10 +570,12 @@ async function boot(){
       await showAdminHome();
       if(savedSection==='history')await showAdminHistory();
       else if(savedSection==='sms')await showSms();
+      else if(savedSection==='schedule')await showScheduleCalendar();
     }else{
       await restoreToday();
       if(savedSection==='history')await showHistory();
       else if(savedSection==='sms')await showSms();
+      else if(savedSection==='schedule')await showScheduleCalendar();
     }
   }finally{
     bootInProgress=false;
@@ -928,6 +943,103 @@ function buildChecklistDetails(sectionRows){
     });
   });
   return root;
+}
+
+let scheduleApiData=null;
+let scheduleLoading=false;
+
+async function showScheduleCalendar(){
+  setActiveNav('scheduleNav');
+  hidePages();
+  $('schedulePage').classList.remove('hidden');
+  await loadScheduleCalendar();
+}
+
+async function loadScheduleCalendar(){
+  if(scheduleLoading)return;
+  scheduleLoading=true;
+  const status=$('scheduleCalendarStatus');
+  const root=$('scheduleCalendar');
+  status.textContent='Загружаем график…';
+  root.innerHTML='';
+  try{
+    const {data,error}=await sb.functions.invoke('schedule-calendar',{body:{}});
+    if(error)throw error;
+    if(!data||data.success!==true)throw new Error(data?.error||'Не удалось получить данные графика.');
+    scheduleApiData=data;
+    fillScheduleFilters();
+    renderScheduleCalendar();
+    status.textContent='График загружен.';
+    $('scheduleUpdated').textContent='Обновлено: '+new Date(data.updatedAt||Date.now()).toLocaleString('ru-RU');
+  }catch(error){
+    console.error('schedule-calendar',error);
+    status.innerHTML='';
+    const box=document.createElement('div');box.className='schedule-error';
+    box.textContent=(error.message||String(error))+' Если написано, что API не настроен, добавь SCHEDULE_API_URL и SCHEDULE_API_TOKEN в секреты Edge Functions в Supabase.';
+    status.append(box);
+  }finally{scheduleLoading=false;}
+}
+
+function fillScheduleFilters(){
+  const monthSelect=$('scheduleMonth'),storeSelect=$('scheduleStore');
+  const oldMonth=monthSelect.value,oldStore=storeSelect.value;
+  monthSelect.innerHTML='';
+  (scheduleApiData?.months||[]).forEach(month=>{
+    const option=document.createElement('option');option.value=month.id;
+    option.textContent=month.name+' '+month.year;monthSelect.append(option);
+  });
+  if(oldMonth&&(scheduleApiData.months||[]).some(x=>x.id===oldMonth))monthSelect.value=oldMonth;
+  else{
+    const now=new Date(),current=String(now.getFullYear())+'-'+String(now.getMonth()+1).padStart(2,'0');
+    monthSelect.value=(scheduleApiData.months||[]).some(x=>x.id===current)?current:(scheduleApiData.months||[]).slice(-1)[0]?.id||'';
+  }
+  storeSelect.innerHTML='';
+  if(profile?.role==='admin'){const all=document.createElement('option');all.value='__all__';all.textContent='Все магазины';storeSelect.append(all);}
+  (scheduleApiData?.stores||[]).forEach(name=>{const option=document.createElement('option');option.value=name;option.textContent=name;storeSelect.append(option);});
+  if(oldStore&&[...storeSelect.options].some(x=>x.value===oldStore))storeSelect.value=oldStore;
+  else{
+    const primary=stores.find(x=>x.id===employee?.primary_store_id);
+    const preferred=primary?.name;
+    if(preferred&&[...storeSelect.options].some(x=>x.value===preferred))storeSelect.value=preferred;
+    else storeSelect.value=profile?.role==='admin'?'__all__':(scheduleApiData?.stores||[])[0]||'';
+  }
+}
+
+function renderScheduleCalendar(){
+  const root=$('scheduleCalendar');root.innerHTML='';
+  if(!scheduleApiData)return;
+  const month=(scheduleApiData.months||[]).find(x=>x.id===$('scheduleMonth').value);
+  if(!month){root.textContent='В таблице пока нет листов с графиком.';return;}
+  const selectedStore=$('scheduleStore').value;
+  const records=(scheduleApiData.schedules||[]).filter(x=>x.monthId===month.id&&(selectedStore==='__all__'||x.store===selectedStore));
+  if(!records.length){root.textContent='Для выбранного месяца и магазина график не найден.';return;}
+  const weekdays=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
+  const grid=document.createElement('div');grid.className='schedule-calendar-grid';
+  weekdays.forEach(day=>{const label=document.createElement('div');label.className='schedule-weekday';label.textContent=day;grid.append(label);});
+  const firstDay=new Date(month.year,month.month-1,1);
+  const offset=(firstDay.getDay()+6)%7;
+  for(let i=0;i<offset;i++){const empty=document.createElement('div');empty.className='schedule-day empty';grid.append(empty);}
+  const daysInMonth=new Date(month.year,month.month,0).getDate();
+  for(let day=1;day<=daysInMonth;day++){
+    const card=document.createElement('div');card.className='schedule-day';
+    const number=document.createElement('div');number.className='schedule-day-number';number.textContent=day;card.append(number);
+    let count=0;
+    records.forEach(record=>{
+      (record.employees||[]).forEach(emp=>{
+        if(!emp.shifts||!Object.prototype.hasOwnProperty.call(emp.shifts,String(day)))return;
+        const shift=document.createElement('div');shift.className='schedule-shift';
+        const name=document.createElement('span');name.className='schedule-shift-name';
+        const parts=String(emp.name||'').trim().split(/\s+/);
+        name.textContent=(parts.length>1?parts[0]+' '+parts[1]:parts[0]||'Сотрудник')+(selectedStore==='__all__'?' · '+record.store:'');
+        const value=document.createElement('span');value.className='schedule-shift-value';
+        const raw=emp.shifts[day];value.textContent=raw==='В'?'В':String(raw)+' ч';
+        shift.append(name,value);card.append(shift);count++;
+      });
+    });
+    if(!count){const none=document.createElement('div');none.className='small muted';none.textContent='Нет смен';card.append(none);}
+    grid.append(card);
+  }
+  root.append(grid);
 }
 
 async function showHistory(){
