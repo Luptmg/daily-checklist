@@ -1662,7 +1662,7 @@ async function copySmsMessage(){
       line=main;isAdditional=true;
     }else if(!getSmsRecommendedTemplateKeys().includes(key)){
       msg('Этот шаблон сейчас не входит в очередь основной линии. Выберите предложенный этап или включите «Шаблоны вне очереди».','notice error');return;
-    }else if(t.standalone&&!(key==='configuration'&&!main)){
+    }else if(t.standalone&&!(key==='configuration'&&!main)&&!(key==='review'&&main)){
       if(existing.some(x=>x.line_kind==='standalone'&&x.initial_stage===key)){
         msg('Самостоятельный шаблон «'+t.name+'» уже отправлялся. Если это ошибка, отмените его в истории.','notice error');return;
       }
