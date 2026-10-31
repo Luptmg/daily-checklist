@@ -1535,18 +1535,29 @@ function toggleSmsOutOfTurn(){
   renderSmsOrder();
 }
 function getSmsRecommendedTemplateKeys(){
-  // Возвращаем весь каталог: доступность проверяется при копировании,
-  // чтобы самостоятельные шаблоны не исчезали из выбора после начала цепочки.
-  return Object.keys(smsTemplates);
+  const main=smsLines.find(l=>l.line_kind==='main');
+  if(smsOutOfTurnMode)return Object.keys(smsTemplates);
+  if(!main)return Object.entries(smsTemplates).filter(([k,v])=>k==='configuration'||v.start===true).map(([k])=>k);
+  if(main.status==='completed')return [];
+  const queues={
+    configuration:['warehouse_pickup','dispatch','accepted'],
+    accepted:['warehouse_pickup','warehouse_delivery'],
+    warehouse_pickup:['review'],
+    warehouse_delivery:['review'],
+    dispatch:['review'],
+    cdek:['review']
+  };
+  return queues[main.current_stage]||[];
 }
 function renderSmsOrder(){
   const old=$('smsOrderWork');if(old)old.remove();
-  const allOptions=Object.entries(smsTemplates).map(([k,v])=>'<option value="'+k+'">'+smsEsc(v.name)+'</option>').join('');
+  const templateKeys=getSmsRecommendedTemplateKeys();
+  const allOptions=templateKeys.map(k=>'<option value="'+k+'">'+smsEsc(smsTemplates[k].name)+'</option>').join('');
   const currentLine=smsLines.find(l=>l.line_kind==='main'&&l.status==='active');
   const currentStage=currentLine?(smsTemplates[currentLine.current_stage]?.name||currentLine.current_stage):'Нет активной основной линии';
   const statusText='Основная цепочка: '+smsEsc(currentStage);
   const outOfTurnButton=smsLines.some(l=>l.line_kind==='main')?'<button type="button" class="secondary" style="margin-top:10px" onclick="toggleSmsOutOfTurn()">'+(smsOutOfTurnMode?'Вернуться к основным шаблонам':'Шаблоны вне очереди')+'</button>':'';
-  const html='<div class="card sms-order-card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><div class="sms-order-meta"><span>Создан '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</span><span>·</span><span>'+statusText+'</span></div><div class="sms-step-card"><label for="smsTemplate">ВЫБЕРИТЕ ШАБЛОН СООБЩЕНИЯ</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+allOptions+'</select><p class="muted" id="smsTemplateHint">Выберите шаблон — текст сообщения появится ниже. Для самостоятельных сообщений создаётся отдельная линия.</p><div id="smsConfigFields" class="sms-config-fields hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><details class="sms-details" id="smsPreviewDetails" open><summary>Текст сообщения</summary><div class="sms-details-body"><div id="smsPreview" class="sms-message"></div></div></details>'+outOfTurnButton+'<button class="primary sms-copy-button" type="button" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
+  const html='<div class="card sms-order-card"><h2>Заказ №'+smsEsc(smsOrder.order_number)+'</h2><div class="sms-order-meta"><span>Создан '+new Date(smsOrder.created_at).toLocaleDateString('ru-RU')+'</span><span>·</span><span>'+statusText+'</span></div><div class="sms-step-card"><label for="smsTemplate">ВЫБЕРИТЕ ШАБЛОН СООБЩЕНИЯ</label><select id="smsTemplate" onchange="updateSmsTemplateFields()">'+allOptions+'</select><p class="muted" id="smsTemplateHint">'+(smsOutOfTurnMode?'Выберите любой шаблон для отправки вне основной очереди.':templateKeys.length?'Доступны только шаблоны, соответствующие текущему этапу основной цепочки.':'Основная цепочка завершена. Для дополнительных сообщений включите «Шаблоны вне очереди».')+'</p><div id="smsConfigFields" class="sms-config-fields hidden"><label>Ссылка на конфигурацию №1</label><input id="smsLink1" placeholder="https://..." oninput="previewSms()"><label>Ссылка на конфигурацию №2 (необязательно)</label><input id="smsLink2" placeholder="https://..." oninput="previewSms()"></div></div><details class="sms-details" id="smsPreviewDetails" open><summary>Текст сообщения</summary><div class="sms-details-body"><div id="smsPreview" class="sms-message"></div></div></details>'+outOfTurnButton+'<button class="primary sms-copy-button" type="button" onclick="copySmsMessage()">Скопировать SMS</button><div id="smsLineList"></div></div>';
   const previous=$('smsOrderModal');if(previous)previous.remove();
   document.body.insertAdjacentHTML('beforeend','<div id="smsOrderModal" class="sms-order-modal" role="presentation" onclick="if(event.target===this)closeSmsOrderView()"><div class="sms-order-dialog" role="dialog" aria-modal="true" aria-label="Работа с заказом"><div class="sms-modal-close"><button type="button" onclick="closeSmsOrderView()" aria-label="Закрыть заказ">×</button></div><div id="smsOrderWork">'+html+'</div></div></div>');
   updateSmsTemplateFields();renderSmsLines();
@@ -1593,7 +1604,7 @@ function updateSmsTemplateFields(){
     if(link1)link1.required=key==='configuration';
   }
   const hint=$('smsTemplateHint');
-  if(hint)hint.textContent=key==='configuration'?'Укажите обязательную ссылку на конфигурацию №1. Вторую ссылку можно добавить по желанию.':key&&smsTemplates[key]?.standalone?'Самостоятельное сообщение: будет создана отдельная линия.':key==='warehouse_delivery'||key==='cdek'?'Этот шаблон доступен только на соответствующем этапе основной цепочки.':'Выбранный шаблон будет проверен по текущему этапу заказа.';
+  if(hint)hint.textContent=key==='configuration'?'Укажите обязательную ссылку на конфигурацию №1. Вторую ссылку можно добавить по желанию.':smsOutOfTurnMode?'Сообщение будет добавлено в историю как отправленное вне основной очереди.':'Шаблон выбран по очереди основной линии.';
   previewSms();
 }
 function renderSmsLines(){
@@ -1647,6 +1658,8 @@ async function copySmsMessage(){
     if(smsOutOfTurnMode){
       if(!main){msg('Сначала создайте основную линию.','notice error');return;}
       line=main;isAdditional=true;
+    }else if(!getSmsRecommendedTemplateKeys().includes(key)){
+      msg('Этот шаблон сейчас не входит в очередь основной линии. Выберите предложенный этап или включите «Шаблоны вне очереди».','notice error');return;
     }else if(t.standalone&&!(key==='configuration'&&!main)){
       if(existing.some(x=>x.line_kind==='standalone'&&x.initial_stage===key)){
         msg('Самостоятельный шаблон «'+t.name+'» уже отправлялся. Если это ошибка, отмените его в истории.','notice error');return;
