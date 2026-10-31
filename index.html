@@ -1083,7 +1083,7 @@ function scheduleEmployeeColor(name){
 }
 
 function scheduleDisplayName(fullName){
-  const value=String(fullName||'').replace(/\\s+/g,' ').trim();
+  const value=String(fullName||'').trim().split(' ').filter(Boolean).join(' ');
   return value||'Сотрудник';
 }
 
