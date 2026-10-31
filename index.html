@@ -1119,7 +1119,12 @@ function renderScheduleCalendar(){
     x.monthId===month.id&&(selectedStore==='__all__'||x.store===selectedStore)
   );
   if(!records.length){
-    root.textContent='На этот месяц график пока не опубликован.';
+    if(scheduleEmployee&&!selectedStore){
+      const primary=stores.find(x=>x.id===scheduleEmployee.primary_store_id);
+      root.textContent='Не удалось найти запись сотрудника «'+scheduleEmployee.full_name+'» или график его основного магазина «'+(primary?.name||'не указан')+'» за выбранный месяц. Доступные магазины: '+[...new Set((scheduleApiData?.schedules||[]).filter(x=>x.monthId===month.id).map(x=>x.store).filter(Boolean))].join(', ');
+    }else{
+      root.textContent='На этот месяц график пока не опубликован.';
+    }
     return;
   }
   const weekdays=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
