@@ -1583,43 +1583,12 @@ function renderSmsLines(){
     const d=document.createElement('div');d.className='sms-history-line';
     const status=l.status==='completed'?'Завершена':'Текущая';
     d.innerHTML='<strong>'+(l.line_kind==='main'?'Основная линия':'Самостоятельная линия')+' · '+status+'</strong><div class="small">'+smsEsc(l.stores?.name||'Магазин')+' · Создал: '+smsEsc(l.creator?.full_name||'—')+' · '+smsAgo(l.last_action_at)+'</div>';
-    if(l.line_kind==='standalone'&&l.status==='completed'&&(profile?.role==='admin'||l.created_by_employee_id===employee?.id)){
-      const remove=document.createElement('button');
-      remove.type='button';
-      remove.className='danger';
-      remove.style.marginTop='8px';
-      remove.textContent='Удалить завершённую линию';
-      remove.onclick=()=>deleteCompletedStandaloneLine(l.id);
-      d.append(remove);
-    }
     (l.sms_messages||[]).sort((a,b)=>new Date(a.copied_at)-new Date(b.copied_at)).forEach(m=>{
       const p=document.createElement('div');p.className='small';p.textContent=smsTemplates[m.template_key]?.name+' · '+new Date(m.copied_at).toLocaleString('ru-RU')+' · скопировал: '+(m.copier?.full_name||'—')+(m.is_additional?' · дополнительное':'');d.append(p);
       if(profile?.role==='employee'&&m.copied_by_employee_id===employee.id){const undo=document.createElement('button');undo.className='danger';undo.style.marginTop='5px';undo.textContent='Отменить ошибочное копирование';undo.onclick=()=>cancelSmsMessage(m.id,l.id,m.stage_before,m.stage_after,l.line_kind,m.line_last_action_before,m.customer_last_activity_before,m.line_status_before,m.line_completed_at_before);d.append(undo);}
     });
     body.append(d);
   });
-}
-async function deleteCompletedStandaloneLine(lineId){
-  const line=smsLines.find(x=>x.id===lineId);
-  if(!line||line.line_kind!=='standalone'||line.status!=='completed'){
-    msg('Удалять можно только завершённую самостоятельную линию.','notice error');
-    return;
-  }
-  if(profile?.role!=='admin'&&line.created_by_employee_id!==employee?.id){
-    msg('Можно удалить только свою самостоятельную линию.','notice error');
-    return;
-  }
-  if(!confirm('Удалить завершённую самостоятельную линию вместе с её сообщениями из истории? Это действие нельзя отменить.'))return;
-  try{
-    const result=await sb.from('sms_lines').delete().eq('id',lineId).eq('line_kind','standalone').eq('status','completed').select('id');
-    if(result.error)throw result.error;
-    if(!result.data||!result.data.length)throw new Error('Линия не удалена. Возможно, у учётной записи нет разрешения на удаление.');
-    await loadSmsLines();
-    await loadSmsLineBoards();
-    msg('Завершённая самостоятельная линия удалена.','notice success');
-  }catch(e){
-    msg('Не удалось удалить линию: '+e.message,'notice error');
-  }
 }
 function updateSmsTemplateFields(){const key=$('smsTemplate')?.value;$('smsConfigFields')?.classList.toggle('hidden',key!=='configuration');previewSms();}
 function previewSms(){
@@ -1703,17 +1672,25 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
     if(freshCustomer.error)throw freshCustomer.error;
     if(customerLastBefore&&freshCustomer.data.last_activity_at&&new Date(freshCustomer.data.last_activity_at)-new Date(current.data.copied_at)>5000){msg('После этого копирования были другие действия с клиентом. Отмена старого действия не разрешена.','notice error');return;}
     const del=await sb.from('sms_messages').delete().eq('id',messageId);if(del.error)throw del.error;
-    if(stageAfter&&(!stageBefore||!lineStatusBefore)){const d=await sb.from('sms_lines').delete().eq('id',lineId);if(d.error)throw d.error;}
-    else{
+    if(lineKind==='standalone'){
+      // Самостоятельная линия состоит из одного копирования:
+      // отмена этого копирования полностью удаляет и сообщение, и линию.
+      const removeLine=await sb.from('sms_lines').delete().eq('id',lineId).eq('line_kind','standalone').select('id');
+      if(removeLine.error)throw removeLine.error;
+      if(!removeLine.data||removeLine.data.length===0)throw new Error('Не удалось удалить самостоятельную линию. Проверь права удаления в Supabase.');
+    }else if(stageAfter&&(!stageBefore||!lineStatusBefore)){
+      const removeLine=await sb.from('sms_lines').delete().eq('id',lineId).select('id');
+      if(removeLine.error)throw removeLine.error;
+      if(!removeLine.data||removeLine.data.length===0)throw new Error('Не удалось удалить новую линию. Проверь права удаления в Supabase.');
+    }else{
       const patch={last_action_at:lineLastBefore||new Date().toISOString()};
       if(stageAfter){patch.current_stage=stageBefore;patch.status=lineStatusBefore||'active';patch.completed_at=lineCompletedBefore||null;patch.completed_by_employee_id=null;}
       const u=await sb.from('sms_lines').update(patch).eq('id',lineId);if(u.error)throw u.error;
-      if(lineKind==='standalone'){
-        const remain=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('line_id',lineId);
-        if(!remain.error&&remain.count===0){const d=await sb.from('sms_lines').delete().eq('id',lineId);if(d.error)throw d.error;}
-      }
     }
-    if(customerLastBefore)await sb.from('sms_customers').update({last_activity_at:customerLastBefore}).eq('id',smsCustomer.id);
+    if(customerLastBefore){
+      const restore=await sb.from('sms_customers').update({last_activity_at:customerLastBefore}).eq('id',smsCustomer.id);
+      if(restore.error)throw restore.error;
+    }
     smsCustomer.last_activity_at=customerLastBefore||smsCustomer.last_activity_at;
     await openSmsCustomer(smsCustomer.id,smsOrder.id);msg('Ошибочное копирование отменено.','notice success');
   }catch(e){msg('Не удалось отменить копирование: '+e.message,'notice error');}
