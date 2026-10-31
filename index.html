@@ -1537,7 +1537,7 @@ function toggleSmsOutOfTurn(){
 function getSmsRecommendedTemplateKeys(){
   const main=smsLines.find(l=>l.line_kind==='main');
   if(smsOutOfTurnMode)return Object.keys(smsTemplates);
-  if(!main)return Object.entries(smsTemplates).filter(([k,v])=>k==='configuration'||v.start===true).map(([k])=>k);
+  if(!main)return Object.entries(smsTemplates).filter(([k,v])=>k==='configuration'||k==='review'||v.start===true).map(([k])=>k);
   if(main.status==='completed')return [];
   const queues={
     configuration:['warehouse_pickup','dispatch','accepted'],
@@ -1662,7 +1662,7 @@ async function copySmsMessage(){
       line=main;isAdditional=true;
     }else if(!getSmsRecommendedTemplateKeys().includes(key)){
       msg('Этот шаблон сейчас не входит в очередь основной линии. Выберите предложенный этап или включите «Шаблоны вне очереди».','notice error');return;
-    }else if(t.standalone&&!(key==='configuration'&&!main)&&!(key==='review'&&main)){
+    }else if(t.standalone&&key!=='review'&&!(key==='configuration'&&!main)){
       if(existing.some(x=>x.line_kind==='standalone'&&x.initial_stage===key)){
         msg('Самостоятельный шаблон «'+t.name+'» уже отправлялся. Если это ошибка, отмените его в истории.','notice error');return;
       }
@@ -1671,9 +1671,10 @@ async function copySmsMessage(){
     }else{
       if(key==='warehouse_delivery'&&!main){msg('Шаблон «На складе доставка» нельзя выбрать первым. Сначала используйте «Принято».','notice error');return;}
       if(!main){
-        if(!t.start&&key!=='configuration'){msg('Этот шаблон нельзя использовать для начала основной цепочки. Сначала используйте «Конфигурация», «На складе самовывоз», «Доставка со склада» или «Принято».','notice error');return;}
-        const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:'active',initial_stage:key,current_stage:key,started_after_configuration:false}).select('*').single();
-        if(ins.error)throw ins.error;line=ins.data;createdLine=true;stageAfter=key;
+        if(!t.start&&key!=='configuration'&&key!=='review'){msg('Этот шаблон нельзя использовать для начала основной цепочки. Сначала используйте «Конфигурация», «На складе самовывоз», «Доставка со склада», «Принято» или «Отзыв».','notice error');return;}
+        const startsCompleted=key==='review';
+        const ins=await sb.from('sms_lines').insert({order_id:smsOrder.id,store_id:day.store_id,created_by_employee_id:employee.id,line_kind:'main',status:startsCompleted?'completed':'active',initial_stage:key,current_stage:key,started_after_configuration:false,completed_at:startsCompleted?new Date().toISOString():null,completed_by_employee_id:startsCompleted?employee.id:null}).select('*').single();
+        if(ins.error)throw ins.error;line=ins.data;createdLine=true;stageAfter=key;complete=startsCompleted;
       }else{
         if(main.status==='completed'){msg('Основная цепочка уже завершена. Используйте режим «Шаблоны вне очереди» для дополнительных сообщений.','notice error');return;}
         line=main;
