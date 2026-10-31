@@ -259,7 +259,7 @@ body.sms-modal-open{overflow:hidden}
         <button class="primary" type="button" onclick="searchSmsCustomers()">Найти</button>
         <div id="smsSearchResults"></div>
       </div>
-      <div id="smsAdminControls" class="hidden"></div><div id="smsAdminStats" class="hidden"></div>
+      <div id="smsAdminControls" class="hidden"></div>
       <div id="smsLineBoards"></div>
       <div id="smsCreateArea" class="hidden">
         <div class="sms-create-heading"><h3>Новая карточка</h3><button class="primary sms-create-toggle" type="button" onclick="toggleSmsCreateForm(false)" aria-label="Закрыть форму">×</button></div>
@@ -1373,13 +1373,12 @@ function smsEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':
 async function showSms(){
   setActiveNav('smsNav');
   hidePages();$('smsPage').classList.remove('hidden');
-  $('smsAdminStats').classList.toggle('hidden',profile?.role!=='admin');
   $('smsAdminControls').classList.toggle('hidden',profile?.role!=='admin');
   $('smsCreateLauncher').classList.toggle('hidden',profile?.role!=='employee');$('smsCreateArea').classList.add('hidden');
   toggleSmsSearch(false);
   if(profile?.role==='admin'&&!$('smsAdminStore')){
     const controls=$('smsAdminControls');
-    controls.innerHTML='<div class="sms-grid"><div><label>Магазин</label><select id="smsAdminStore" onchange="applySmsAdminFilters()"><option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('')+'</select></div><div><label>Сотрудник</label><select id="smsAdminEmployee" onchange="applySmsAdminFilters()"><option value="">Все сотрудники</option></select></div><div><label>С даты</label><input id="smsStatFrom" type="date" onchange="applySmsAdminStatsFilter()"></div><div><label>По дату</label><input id="smsStatTo" type="date" onchange="applySmsAdminStatsFilter()"></div></div>';
+    controls.innerHTML='<div class="sms-grid"><div><label>Магазин</label><select id="smsAdminStore" onchange="applySmsAdminFilters()"><option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('')+'</select></div><div><label>Сотрудник</label><select id="smsAdminEmployee" onchange="applySmsAdminFilters()"><option value="">Все сотрудники</option></select></div></div>';
     const er=await sb.from('employees').select('id,full_name').eq('active',true).order('full_name');
     if(!er.error)er.data.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.full_name;$('smsAdminEmployee').append(o);});
   }
@@ -1395,10 +1394,9 @@ function toggleSmsSearch(force){
   button.title=open?'Скрыть поиск':'Поиск';
   if(open)setTimeout(()=> $('smsSearch')?.focus(),0);
 }
-function applySmsAdminFilters(){loadSmsAdminStats();loadSmsLineBoards();}
-function applySmsAdminStatsFilter(){loadSmsAdminStats();}
+function applySmsAdminFilters(){loadSmsLineBoards();}
 async function loadSmsHome(){
-  if(profile?.role==='admin'){await loadSmsAdminStats();await loadSmsLineBoards();return;}
+  if(profile?.role==='admin'){await loadSmsLineBoards();return;}
   if(!day?.store_id){$('smsCustomerDetails').innerHTML='<p class="notice">Сначала начни рабочий день и выбери магазин.</p>';return;}
   await loadSmsLineBoards();
 }
@@ -1838,26 +1836,6 @@ async function loadSmsLineBoards(){
   }catch(e){root.textContent='Не удалось загрузить заказы: '+e.message;}
 }
 
-async function loadSmsAdminStats(){
-  const root=$('smsAdminStats');root.innerHTML='<h3>Статистика сообщений</h3>';
-  const store=$('smsAdminStore')?.value||'',emp=$('smsAdminEmployee')?.value||'',from=$('smsStatFrom')?.value||'',to=$('smsStatTo')?.value||'';
-  let dq=sb.from('sms_employee_store_daily_stats').select('employee_id,store_id,stat_date,copied_messages,completed_lines,employees(full_name),stores(name)').order('stat_date',{ascending:false}).limit(5000);
-  let lq=sb.from('sms_employee_store_lifetime_stats').select('employee_id,store_id,copied_messages,completed_lines,employees(full_name),stores(name)').order('copied_messages',{ascending:false});
-  if(store){dq=dq.eq('store_id',store);lq=lq.eq('store_id',store);}
-  if(emp){dq=dq.eq('employee_id',emp);lq=lq.eq('employee_id',emp);}
-  if(from)dq=dq.gte('stat_date',from);
-  if(to)dq=dq.lte('stat_date',to);
-  const [daily,lifetime]=await Promise.all([dq,lq]);
-  if(daily.error)throw daily.error;if(lifetime.error)throw lifetime.error;
-  const rows=daily.data||[],lifeRows=lifetime.data||[];
-  const total=rows.reduce((a,x)=>a+x.copied_messages,0),completed=rows.reduce((a,x)=>a+x.completed_lines,0);
-  const life=lifeRows.reduce((a,x)=>a+Number(x.copied_messages),0),lifeCompleted=lifeRows.reduce((a,x)=>a+Number(x.completed_lines),0);
-  const wrap=document.createElement('div');wrap.className='sms-grid';
-  wrap.innerHTML='<div class="dashboard-stat"><strong>'+total+'</strong><span>Скопировано за выбранный период</span></div><div class="dashboard-stat"><strong>'+completed+'</strong><span>Завершено линий за период</span></div><div class="dashboard-stat"><strong>'+life+'</strong><span>Скопировано за всё время</span></div><div class="dashboard-stat"><strong>'+lifeCompleted+'</strong><span>Завершено линий за всё время</span></div>';
-  root.append(wrap);
-  const h=document.createElement('h3');h.textContent='По сотрудникам за всё время';root.append(h);
-  lifeRows.forEach(x=>{const p=document.createElement('p');p.className='small';p.textContent=(x.employees?.full_name||'Сотрудник')+' · '+(x.stores?.name||'Магазин')+' · SMS: '+x.copied_messages+' · завершено линий: '+x.completed_lines;root.append(p);});
-}
 
 if(!configured){
   $('configWarning').classList.remove('hidden');
