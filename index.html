@@ -1664,40 +1664,41 @@ async function loadSmsLines(){
 async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind,lineLastBefore,customerLastBefore,lineStatusBefore,lineCompletedBefore){
   if(!confirm('Удалить ошибочное копирование из истории и отменить его влияние на линию?'))return;
   try{
-    const current=await sb.from('sms_messages').select('id,copied_at').eq('id',messageId).single();if(current.error)throw current.error;
-    const newer=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('order_id',smsOrder.id).gt('copied_at',current.data.copied_at);
+    const current=await sb.from('sms_messages').select('id,order_id,line_id,copied_at,copied_by_employee_id').eq('id',messageId).single();
+    if(current.error)throw current.error;
+    const newer=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('order_id',current.data.order_id).gt('copied_at',current.data.copied_at);
     if(newer.error)throw newer.error;
     if(newer.count>0){msg('Можно отменить только последнее копирование в заказе.','notice error');return;}
     const freshCustomer=await sb.from('sms_customers').select('last_activity_at').eq('id',smsCustomer.id).single();
     if(freshCustomer.error)throw freshCustomer.error;
     if(customerLastBefore&&freshCustomer.data.last_activity_at&&new Date(freshCustomer.data.last_activity_at)-new Date(current.data.copied_at)>5000){msg('После этого копирования были другие действия с клиентом. Отмена старого действия не разрешена.','notice error');return;}
-    const del=await sb.from('sms_messages').delete().eq('id',messageId);if(del.error)throw del.error;
-    if(lineKind==='standalone'){
-      // Самостоятельная линия состоит из одного копирования:
-      // отмена этого копирования полностью удаляет и сообщение, и линию.
-      const removeLine=await sb.from('sms_lines').delete().eq('id',lineId).eq('line_kind','standalone').select('id');
+
+    // Проверяем, что удаление действительно затронуло сообщение. При отказе RLS
+    // не продолжаем менять линию и не показываем ложный успех.
+    const del=await sb.from('sms_messages').delete().eq('id',messageId).select('id');
+    if(del.error)throw del.error;
+    if(!del.data||del.data.length!==1)throw new Error('Сообщение не удалено: проверь права удаления в Supabase.');
+
+    const remaining=await sb.from('sms_messages').select('id',{count:'exact',head:true}).eq('line_id',lineId);
+    if(remaining.error)throw remaining.error;
+    if(lineKind==='standalone'||(lineKind==='main'&&(remaining.count||0)===0)){
+      const removeLine=await sb.from('sms_lines').delete().eq('id',lineId).eq('line_kind',lineKind).select('id');
       if(removeLine.error)throw removeLine.error;
-      if(!removeLine.data||removeLine.data.length===0)throw new Error('Не удалось удалить самостоятельную линию. Проверь права удаления в Supabase.');
-    }else if(
-      // Отмена самого первого копирования основной линии:
-      // удаляем линию целиком, чтобы заказ снова стал доступен для стартовых шаблонов.
-      (lineKind==='main'&&!lineLastBefore&&!lineStatusBefore) ||
-      (stageAfter&&(!stageBefore||!lineStatusBefore))
-    ){
-      const removeLine=await sb.from('sms_lines').delete().eq('id',lineId).eq('line_kind','main').select('id');
-      if(removeLine.error)throw removeLine.error;
-      if(!removeLine.data||removeLine.data.length===0)throw new Error('Не удалось сбросить основную линию. Проверь права удаления в Supabase.');
+      if(!removeLine.data||removeLine.data.length!==1)throw new Error('Сообщение удалено, но линия не удалена. Обнови историю и повтори отмену; если линия останется, проверь права удаления sms_lines.');
     }else{
       const patch={last_action_at:lineLastBefore||new Date().toISOString()};
       if(stageAfter){patch.current_stage=stageBefore;patch.status=lineStatusBefore||'active';patch.completed_at=lineCompletedBefore||null;patch.completed_by_employee_id=null;}
-      const u=await sb.from('sms_lines').update(patch).eq('id',lineId);if(u.error)throw u.error;
+      const u=await sb.from('sms_lines').update(patch).eq('id',lineId).select('id');
+      if(u.error)throw u.error;
+      if(!u.data||u.data.length!==1)throw new Error('Не удалось восстановить состояние линии.');
     }
     if(customerLastBefore){
       const restore=await sb.from('sms_customers').update({last_activity_at:customerLastBefore}).eq('id',smsCustomer.id);
       if(restore.error)throw restore.error;
     }
     smsCustomer.last_activity_at=customerLastBefore||smsCustomer.last_activity_at;
-    await openSmsCustomer(smsCustomer.id,smsOrder.id);msg('Ошибочное копирование отменено.','notice success');
+    await openSmsCustomer(smsCustomer.id,smsOrder.id);
+    msg('Ошибочное копирование отменено.','notice success');
   }catch(e){msg('Не удалось отменить копирование: '+e.message,'notice error');}
 }
 let smsBoardTab='mine';
