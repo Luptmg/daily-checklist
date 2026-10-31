@@ -1359,6 +1359,7 @@ ${d.address}
 📞 ${d.phone}`}
 };
 let smsCustomer=null,smsOrder=null,smsLines=[],smsStore=null,smsDraftKey=null,smsOutOfTurnMode=false;
+let smsAdminEmployees=[];
 function smsNormalizePhone(v){return String(v||'').replace(/\D/g,'');}
 function smsAgo(v){
   const days=Math.floor((Date.now()-new Date(v).getTime())/86400000);
@@ -1369,6 +1370,7 @@ function smsAgo(v){
   return 'Последнее действие: '+Math.floor(days/30)+' мес. назад';
 }
 function smsEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function smsManagerFirstName(fullName){const parts=String(fullName||'').trim().split(/\\s+/).filter(Boolean);return parts.length>1?parts[1]:parts[0]||'';}
 
 async function showSms(){
   setActiveNav('smsNav');
@@ -1379,8 +1381,10 @@ async function showSms(){
   if(profile?.role==='admin'&&!$('smsAdminStore')){
     const controls=$('smsAdminControls');
     controls.innerHTML='<div class="sms-grid"><div><label>Магазин</label><select id="smsAdminStore" onchange="applySmsAdminFilters()"><option value="">Все магазины</option>'+stores.map(x=>'<option value="'+x.id+'">'+smsEsc(x.name)+'</option>').join('')+'</select></div><div><label>Сотрудник</label><select id="smsAdminEmployee" onchange="applySmsAdminFilters()"><option value="">Все сотрудники</option></select></div></div>';
-    const er=await sb.from('employees').select('id,full_name').eq('active',true).order('full_name');
-    if(!er.error)er.data.forEach(x=>{const o=document.createElement('option');o.value=x.id;o.textContent=x.full_name;$('smsAdminEmployee').append(o);});
+    const er=await sb.from('employees').select('id,full_name,primary_store_id').eq('active',true).order('full_name');
+    if(er.error)throw er.error;
+    smsAdminEmployees=er.data||[];
+    renderSmsAdminEmployeeFilter();
   }
   await loadSmsHome();
 }
@@ -1394,7 +1398,15 @@ function toggleSmsSearch(force){
   button.title=open?'Скрыть поиск':'Поиск';
   if(open)setTimeout(()=> $('smsSearch')?.focus(),0);
 }
-function applySmsAdminFilters(){loadSmsLineBoards();}
+function renderSmsAdminEmployeeFilter(keepSelection=true){
+  const select=$('smsAdminEmployee'),storeId=$('smsAdminStore')?.value||'';
+  if(!select)return;
+  const previous=keepSelection?select.value:'';
+  const available=smsAdminEmployees.filter(x=>!storeId||x.primary_store_id===storeId);
+  select.innerHTML='<option value="">Все сотрудники</option>'+available.map(x=>'<option value="'+smsEsc(x.id)+'">'+smsEsc(x.full_name)+'</option>').join('');
+  select.value=available.some(x=>x.id===previous)?previous:'';
+}
+function applySmsAdminFilters(){renderSmsAdminEmployeeFilter();loadSmsLineBoards();}
 async function loadSmsHome(){
   if(profile?.role==='admin'){await loadSmsLineBoards();return;}
   if(!day?.store_id){$('smsCustomerDetails').innerHTML='<p class="notice">Сначала начни рабочий день и выбери магазин.</p>';return;}
@@ -1568,7 +1580,8 @@ function previewSms(){
   if(!template){root.textContent='Выберите шаблон сообщения.';return;}
   const storeId=day?.store_id||smsLines.find(l=>l.store_id)?.store_id||employee?.primary_store_id;
   const store=stores.find(x=>x.id===storeId)||{};
-  const employeeName=employee?.full_name||profile?.full_name||'';
+  const managerFullName=employee?.full_name||profile?.full_name||'';
+  const employeeName=smsManagerFirstName(managerFullName);
   const customerName=smsCustomer?.full_name||'';
   const city=store.warehouse_city||store.city||'';
   const cityGenitive=city==='Екатеринбург'?'Екатеринбурга':city==='Краснодар'?'Краснодара':city;
