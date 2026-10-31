@@ -1678,10 +1678,15 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
       const removeLine=await sb.from('sms_lines').delete().eq('id',lineId).eq('line_kind','standalone').select('id');
       if(removeLine.error)throw removeLine.error;
       if(!removeLine.data||removeLine.data.length===0)throw new Error('Не удалось удалить самостоятельную линию. Проверь права удаления в Supabase.');
-    }else if(stageAfter&&(!stageBefore||!lineStatusBefore)){
-      const removeLine=await sb.from('sms_lines').delete().eq('id',lineId).select('id');
+    }else if(
+      // Отмена самого первого копирования основной линии:
+      // удаляем линию целиком, чтобы заказ снова стал доступен для стартовых шаблонов.
+      (lineKind==='main'&&!lineLastBefore&&!lineStatusBefore) ||
+      (stageAfter&&(!stageBefore||!lineStatusBefore))
+    ){
+      const removeLine=await sb.from('sms_lines').delete().eq('id',lineId).eq('line_kind','main').select('id');
       if(removeLine.error)throw removeLine.error;
-      if(!removeLine.data||removeLine.data.length===0)throw new Error('Не удалось удалить новую линию. Проверь права удаления в Supabase.');
+      if(!removeLine.data||removeLine.data.length===0)throw new Error('Не удалось сбросить основную линию. Проверь права удаления в Supabase.');
     }else{
       const patch={last_action_at:lineLastBefore||new Date().toISOString()};
       if(stageAfter){patch.current_stage=stageBefore;patch.status=lineStatusBefore||'active';patch.completed_at=lineCompletedBefore||null;patch.completed_by_employee_id=null;}
