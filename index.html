@@ -1544,6 +1544,39 @@ function renderSmsOrder(){
   document.body.insertAdjacentHTML('beforeend','<div id="smsOrderModal" class="sms-order-modal" role="presentation" onclick="if(event.target===this)closeSmsOrderView()"><div class="sms-order-dialog" role="dialog" aria-modal="true" aria-label="Работа с заказом"><div class="sms-modal-close"><button type="button" onclick="closeSmsOrderView()" aria-label="Закрыть заказ">×</button></div><div id="smsOrderWork">'+html+'</div></div></div>');
   updateSmsTemplateFields();renderSmsLines();
 }
+function previewSms(){
+  const root=$('smsPreview');
+  if(!root)return;
+  const key=$('smsTemplate')?.value;
+  const template=smsTemplates[key];
+  if(!template){root.textContent='Выберите шаблон сообщения.';return;}
+  const storeId=day?.store_id||smsLines.find(l=>l.store_id)?.store_id||employee?.primary_store_id;
+  const store=stores.find(x=>x.id===storeId)||{};
+  const employeeName=employee?.full_name||profile?.full_name||'';
+  const customerName=smsCustomer?.full_name||'';
+  const city=store.warehouse_city||store.city||'';
+  const cityGenitive=city==='Екатеринбург'?'Екатеринбурга':city==='Краснодар'?'Краснодара':city;
+  const data={
+    name:customerName,
+    employee:employeeName,
+    order:smsOrder?.order_number||'',
+    store:store.name||'',
+    phone:store.phone||'',
+    city,
+    cityGenitive,
+    address:store.warehouse_address||'',
+    yandex:store.review_yandex_url||'',
+    gis:store.review_2gis_url||'',
+    link1:$('smsLink1')?.value.trim()||'',
+    link2:$('smsLink2')?.value.trim()||'',
+    isDanil:employeeName.toLowerCase().includes('лаптев')
+  };
+  try{
+    root.textContent=template.text(data);
+  }catch(e){
+    root.textContent='Не удалось сформировать текст сообщения: '+(e.message||String(e));
+  }
+}
 function updateSmsTemplateFields(){
   const key=$('smsTemplate')?.value;
   $('smsConfigFields')?.classList.toggle('hidden',key!=='configuration');
