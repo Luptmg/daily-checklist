@@ -380,6 +380,10 @@ function hidePages(){
   ['setup','home','work','historyPage','smsPage','adminHomePage','adminHistoryPage','adminWorkdayPage','passwordPage'].forEach(id=>$(id).classList.add('hidden'));
 }
 function setActiveNav(active){
+  try{
+    const section=active==='smsNav'?'sms':active==='historyNav'?'history':'home';
+    if(user?.id)localStorage.setItem('dailyChecklistSection:'+user.id,section);
+  }catch(e){}
   ['homeNav','historyNav','smsNav'].forEach(id=>{
     const el=$(id);
     if(!el)return;
@@ -512,6 +516,7 @@ async function boot(){
     profile=p.data;
     if(!['admin','employee'].includes(profile.role))throw new Error('У профиля неизвестная роль.');
 
+    const savedSection=(()=>{try{return localStorage.getItem('dailyChecklistSection:'+user.id)||'home';}catch(e){return 'home';}})();
     day=null;dayStore=null;progress={};
     if(profile.role==='employee'){
       if(!profile.employee_id)throw new Error('У сотрудника не указан employee_id в profiles.');
@@ -534,8 +539,12 @@ async function boot(){
     if(profile.role==='admin'){
       const dashboardDateInput=$('dashboardDateInput');if(dashboardDateInput)dashboardDateInput.value=todayKey();
       await showAdminHome();
+      if(savedSection==='history')await showAdminHistory();
+      else if(savedSection==='sms')await showSms();
     }else{
       await restoreToday();
+      if(savedSection==='history')await showHistory();
+      else if(savedSection==='sms')await showSms();
     }
   }finally{
     bootInProgress=false;
