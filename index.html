@@ -1023,41 +1023,12 @@ function fillScheduleStoreFilter(useDefault=false){
   const availableStores=[...new Set(records.map(x=>x.store).filter(Boolean))];
   const primary=stores.find(x=>x.id===scheduleEmployee?.primary_store_id);
   const preferred=primary?.name;
-  const normalizeStoreName=value=>String(value||'')
-    .toLocaleLowerCase('ru-RU')
-    .replace(/тц|торговый центр/g,'')
-    .replace(/[«»"']/g,'')
-    .replace(/[^\p{L}\p{N}]+/gu,' ')
-    .trim()
-    .replace(/\s+/g,' ');
-  const preferredKey=normalizeStoreName(preferred);
-  const preferredScheduleStore=preferredKey
-    ?availableStores.find(name=>{
-      const key=normalizeStoreName(name);
-      return key===preferredKey||key.startsWith(preferredKey+' ')||preferredKey.startsWith(key+' ');
-    })
-    :null;
-  // Если название магазина в таблице отличается, ищем магазин по самой записи сотрудника.
-  const employeeKey=normalizeStoreName(scheduleEmployee?.full_name);
-  const employeeRecord=scheduleEmployee
-    ?records.find(record=>(record.employees||[]).some(emp=>
-      normalizeStoreName(emp.name)===employeeKey
-    ))
-    :null;
-  const employeeScheduleStore=employeeRecord?.store||null;
-
   storeSelect.innerHTML='';
-  if(profile?.role==='admin'&&!scheduleEmployee&&availableStores.length>1){
+  if(profile?.role==='admin'&&availableStores.length>1){
     const all=document.createElement('option');
     all.value='__all__';
     all.textContent='Все магазины';
     storeSelect.append(all);
-  }
-  if(scheduleEmployee&&!employeeScheduleStore&&!preferredScheduleStore){
-    const placeholder=document.createElement('option');
-    placeholder.value='';
-    placeholder.textContent='Не найден график основного магазина';
-    storeSelect.append(placeholder);
   }
   availableStores.forEach(name=>{
     const option=document.createElement('option');
@@ -1066,22 +1037,21 @@ function fillScheduleStoreFilter(useDefault=false){
     storeSelect.append(option);
   });
 
-  // Для связанного сотрудника приоритет — магазин из его собственной записи графика.
-  // Если записи сотрудника нет, не подменяем его магазин первым попавшимся.
+  // При открытии сотрудник видит свой основной магазин, администратор — все.
+  // При ручном переключении месяца/магазина сохраняем выбор, если он доступен.
   if(!useDefault&&oldStore&&[...storeSelect.options].some(x=>x.value===oldStore)){
     storeSelect.value=oldStore;
-  }else if(scheduleEmployee&&employeeScheduleStore){
-    storeSelect.value=employeeScheduleStore;
-  }else if(scheduleEmployee&&preferredScheduleStore){
-    storeSelect.value=preferredScheduleStore;
-  }else if(scheduleEmployee){
-    storeSelect.value='';
+  }else if(profile?.role==='admin'&&preferred&&[...storeSelect.options].some(x=>x.value===preferred)){
+    storeSelect.value=preferred;
   }else if(profile?.role==='admin'){
     storeSelect.value=availableStores.length>1?'__all__':(availableStores[0]||'');
+  }else if(preferred&&[...storeSelect.options].some(x=>x.value===preferred)){
+    storeSelect.value=preferred;
   }else{
     storeSelect.value=availableStores[0]||'';
   }
 }
+
 function onScheduleMonthChange(){
   fillScheduleStoreFilter();
   renderScheduleCalendar();
@@ -1119,12 +1089,7 @@ function renderScheduleCalendar(){
     x.monthId===month.id&&(selectedStore==='__all__'||x.store===selectedStore)
   );
   if(!records.length){
-    if(scheduleEmployee&&!selectedStore){
-      const primary=stores.find(x=>x.id===scheduleEmployee.primary_store_id);
-      root.textContent='Не удалось найти запись сотрудника «'+scheduleEmployee.full_name+'» или график его основного магазина «'+(primary?.name||'не указан')+'» за выбранный месяц. Доступные магазины: '+[...new Set((scheduleApiData?.schedules||[]).filter(x=>x.monthId===month.id).map(x=>x.store).filter(Boolean))].join(', ');
-    }else{
-      root.textContent='На этот месяц график пока не опубликован.';
-    }
+    root.textContent='На этот месяц график пока не опубликован.';
     return;
   }
   const weekdays=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
@@ -1624,7 +1589,7 @@ function smsAgo(v){
   return 'Последнее действие: '+Math.floor(days/30)+' мес. назад';
 }
 function smsEsc(v){return String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
-function smsManagerFirstName(fullName){const parts=String(fullName||'').trim().split(/\s+/).filter(Boolean);return parts.length>1?parts[1]:parts[0]||'';}
+function smsManagerFirstName(fullName){const parts=String(fullName||'').trim().split(/\\s+/).filter(Boolean);return parts.length>1?parts[1]:parts[0]||'';}
 
 async function showSms(){
   setActiveNav('smsNav');
