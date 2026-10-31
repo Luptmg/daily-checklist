@@ -1703,6 +1703,7 @@ async function cancelSmsMessage(messageId,lineId,stageBefore,stageAfter,lineKind
     // Не откатываем last_activity_at: отмена одной линии не должна затирать
     // более поздние действия по другим линиям этого клиента.
     await openSmsCustomer(smsCustomer.id,smsOrder.id);
+    await loadSmsLineBoards();
     msg('Ошибочное копирование отменено.','notice success');
   }catch(e){msg('Не удалось отменить копирование: '+e.message,'notice error');}
 }
