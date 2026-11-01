@@ -1846,8 +1846,7 @@ function renderSmsAdminEmployeeFilter(keepSelection=true){
 }
 function applySmsAdminFilters(){renderSmsAdminEmployeeFilter();loadSmsLineBoards();}
 async function loadSmsHome(){
-  if(profile?.role==='admin'){await loadSmsLineBoards();return;}
-  if(!day?.store_id){$('smsCustomerDetails').innerHTML='<p class="notice">Сначала начни рабочий день и выбери магазин.</p>';return;}
+  // История сотрудника доступна и без начатой смены.
   await loadSmsLineBoards();
 }
 async function searchSmsCustomers(){
@@ -1970,7 +1969,7 @@ async function selectSmsOrder(id){
     step='загрузка заказа';
     const r=await sb.from('sms_orders').select('id,order_number,customer_id,created_at').eq('id',id).single();if(r.error)throw r.error;smsOrder=r.data;
     step='загрузка линий заказа';
-    const storeId=profile?.role==='admin'?$('smsAdminStore')?.value:day?.store_id;
+    const storeId=profile?.role==='admin'?$('smsAdminStore')?.value:'';
     const lineQuery=sb.from('sms_lines').select('id,line_kind,status,initial_stage,current_stage,started_after_configuration,last_action_at,created_at,store_id,created_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_messages(id,template_key,rendered_text,copied_at,copied_by_employee_id,is_additional,stage_before,stage_after,line_last_action_before,customer_last_activity_before,line_status_before,line_completed_at_before,copier:employees!sms_messages_copied_by_employee_id_fkey(full_name))').eq('order_id',id).order('created_at',{ascending:false});
     if(storeId)lineQuery.eq('store_id',storeId);
     const l=await lineQuery;if(l.error)throw l.error;smsLines=l.data||[];
@@ -2241,19 +2240,19 @@ async function loadSmsLineBoards(){
   try{
     // Список строится от заказов, а не от линий: заказ без переписки
     // остаётся действующим и не попадает в завершённые.
-    const q=sb.from('sms_orders').select('id,order_number,created_at,customer_id,sms_customers(id,full_name,phone,primary_store_id,created_by_employee_id),sms_lines(id,line_kind,status,initial_stage,current_stage,last_action_at,store_id,created_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_messages(id))').order('created_at',{ascending:false}).limit(500);
+    const q=sb.from('sms_orders').select('id,order_number,created_at,customer_id,sms_customers(id,full_name,phone,primary_store_id,created_by_employee_id),sms_lines(id,line_kind,status,initial_stage,current_stage,last_action_at,store_id,created_by_employee_id,completed_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_messages(id,copied_by_employee_id))').order('created_at',{ascending:false}).limit(500);
     const r=await q;if(r.error)throw r.error;
-    const storeFilter=profile?.role==='employee'?day?.store_id:($('smsAdminStore')?.value||'');
+    const storeFilter=profile?.role==='employee'?(day?.store_id||employee?.primary_store_id||''):($('smsAdminStore')?.value||'');
     const employeeFilter=profile?.role==='admin'?($('smsAdminEmployee')?.value||''):'';
     const rows=(r.data||[]).map(order=>{
       const lines=(order.sms_lines||[]).filter(line=>(line.sms_messages||[]).length>0);
       const activeLines=lines.filter(line=>line.status==='active');
       const completed=lines.length>0&&activeLines.length===0;
       const latest=[...lines].sort((a,b)=>new Date(b.last_action_at||b.created_at||0)-new Date(a.last_action_at||a.created_at||0))[0]||null;
-      const ownerIds=lines.map(line=>line.created_by_employee_id).filter(Boolean);
+      const ownerIds=lines.flatMap(line=>[line.created_by_employee_id,line.completed_by_employee_id,...(line.sms_messages||[]).map(m=>m.copied_by_employee_id)]).filter(Boolean);
       const isMine=profile?.role==='employee'
-        ?(ownerIds.includes(employee?.id)||(!lines.length&&order.sms_customers?.created_by_employee_id===employee?.id)):true;
-      const matchesStore=!storeFilter||order.sms_customers?.primary_store_id===storeFilter||lines.some(line=>line.store_id===storeFilter);
+        ?(ownerIds.includes(employee?.id)||order.sms_customers?.created_by_employee_id===employee?.id):true;
+      const matchesStore=!storeFilter||order.sms_customers?.primary_store_id===storeFilter||lines.some(line=>line.store_id===storeFilter)||isMine;
       const matchesEmployee=!employeeFilter||ownerIds.includes(employeeFilter)||(!lines.length&&order.sms_customers?.created_by_employee_id===employeeFilter);
       return {...order,_lines:lines,_activeLines:activeLines,_latest:latest,_completed:completed,_mine:isMine,_matchesStore:matchesStore,_matchesEmployee:matchesEmployee};
     }).filter(order=>order._matchesStore&&order._matchesEmployee);
