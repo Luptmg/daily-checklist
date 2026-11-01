@@ -129,6 +129,23 @@ body.sms-modal-open{overflow:hidden}
 .admin-accordion-toggle>span:first-child{display:flex;flex:1;min-width:0;flex-direction:column;gap:4px}.admin-accordion-toggle small{font-size:12px;color:var(--muted);font-weight:400}.admin-accordion-status{font-size:11px;color:var(--muted);white-space:nowrap}.admin-accordion-body{padding:0 12px}
 .admin-task-row{padding:12px 0;border-bottom:1px solid var(--border)}.admin-task-row:last-child{border-bottom:0}.admin-task-state{display:block;font-size:12px;margin-bottom:5px}.admin-task-state.done{color:var(--success-text)}.admin-task-state.failed{color:var(--danger-text)}.admin-task-state.pending{color:var(--muted)}.admin-task-text{font-size:14px;line-height:1.5}.admin-task-comment{margin-top:8px;padding:10px;border-radius:9px;background:var(--notice);color:var(--notice-text);font-size:13px;line-height:1.5;white-space:pre-wrap}
 @media(max-width:560px){.admin-filters{gap:4px}.admin-filters button{font-size:11px;padding:10px 2px}.admin-counts{gap:5px}.admin-count{padding:9px 4px}.admin-count strong{font-size:20px}.home-section-status{font-size:11px}}
+
+/* Административный график: табель по сотрудникам и дням */
+.schedule-roster{margin:14px 0 22px}
+.schedule-roster-title{font-size:16px;margin:0 0 9px}
+.schedule-roster-wrap{width:100%;overflow:auto;border:1px solid var(--border);border-radius:12px;background:var(--surface);overscroll-behavior-x:contain}
+.schedule-roster-table{width:max-content;min-width:100%;border-collapse:separate;border-spacing:0;font-size:12px}
+.schedule-roster-table th,.schedule-roster-table td{min-width:38px;height:42px;padding:5px 4px;text-align:center;vertical-align:middle;border-right:1px solid var(--border);border-bottom:1px solid var(--border);white-space:nowrap}
+.schedule-roster-table thead th{position:sticky;top:0;z-index:2;background:var(--table-head);font-weight:700}
+.schedule-roster-table .schedule-roster-name{position:sticky;left:0;z-index:3;min-width:126px;max-width:150px;text-align:left;padding:7px 9px;background:var(--surface);white-space:normal}
+.schedule-roster-table thead .schedule-roster-name{z-index:4;background:var(--table-head)}
+.schedule-roster-table td.weekend,.schedule-roster-table thead th.weekend{background:var(--surface-soft)}
+.schedule-roster-table .schedule-roster-empty{color:var(--muted);opacity:.55}
+.schedule-roster-shift{display:inline-block;min-width:30px;padding:5px 3px;border-radius:6px;background:var(--success);color:var(--success-text);font-size:10px;font-weight:700}
+.schedule-roster-table tr:last-child th,.schedule-roster-table tr:last-child td{border-bottom:0}
+.schedule-roster-table th:last-child,.schedule-roster-table td:last-child{border-right:0}
+@media(max-width:560px){.schedule-roster-table th,.schedule-roster-table td{min-width:36px;height:40px;padding:4px 3px}.schedule-roster-table .schedule-roster-name{min-width:112px;max-width:112px;font-size:11px}.schedule-roster-shift{font-size:9px;min-width:27px}}
+
 </style>
 </head>
 <body>
@@ -1303,6 +1320,7 @@ function renderScheduleCalendar(){
     renderPersonalSchedule(month,records);
     return;
   }
+
   const selectedStore=$('scheduleStore').value;
   const records=(scheduleApiData.schedules||[]).filter(x=>
     x.monthId===month.id&&(selectedStore==='__all__'||x.store===selectedStore)
@@ -1311,63 +1329,95 @@ function renderScheduleCalendar(){
     root.textContent='На этот месяц график пока не опубликован.';
     return;
   }
-  const weekdays=['Пн','Вт','Ср','Чт','Пт','Сб','Вс'];
-  const grid=document.createElement('div');
-  grid.className='schedule-calendar-grid';
-  weekdays.forEach(day=>{
-    const label=document.createElement('div');
-    label.className='schedule-weekday'+(day==='Сб'||day==='Вс'?' weekend':'');
-    label.textContent=day;
-    grid.append(label);
-  });
-  const firstDay=new Date(month.year,month.month-1,1);
-  const offset=(firstDay.getDay()+6)%7;
-  for(let i=0;i<offset;i++){
-    const empty=document.createElement('div');
-    empty.className='schedule-day empty';
-    grid.append(empty);
-  }
+
   const daysInMonth=new Date(month.year,month.month,0).getDate();
-  for(let day=1;day<=daysInMonth;day++){
-    const card=document.createElement('div');
-    const date=new Date(month.year,month.month-1,day);
-    const isWeekend=date.getDay()===0||date.getDay()===6;
-    card.className='schedule-day'+(isWeekend?' weekend':'');
-    const number=document.createElement('div');
-    number.className='schedule-day-number';
-    number.textContent=day;
-    card.append(number);
-    let count=0;
-    records.forEach(record=>{
+  const storesToShow=selectedStore==='__all__'
+    ?[...new Set(records.map(x=>x.store).filter(Boolean))]
+    :[selectedStore||records[0].store];
+
+  storesToShow.forEach(storeName=>{
+    const storeRecords=records.filter(record=>record.store===storeName);
+    const people=new Map();
+    storeRecords.forEach(record=>{
       (record.employees||[]).forEach(emp=>{
-        if(!emp.shifts||!Object.prototype.hasOwnProperty.call(emp.shifts,String(day)))return;
-        const raw=String(emp.shifts[day]??'').trim().toUpperCase();
-        if(!raw||raw==='В')return;
-        const shift=document.createElement('div');
-        shift.className='schedule-shift';
-        const [background,color]=scheduleEmployeeColor(emp.name);
-        shift.style.backgroundColor=background;
-        shift.style.color=color;
-        shift.style.border='1px solid '+color+'30';
-        const name=document.createElement('span');
-        name.className='schedule-shift-name';
-        name.textContent=scheduleDisplayName(emp.name)+(selectedStore==='__all__'?' · '+record.store:'');
-        shift.append(name);
-        card.append(shift);
-        count++;
+        const name=scheduleDisplayName(emp.name);
+        if(!people.has(name))people.set(name,{name,shifts:{}});
+        const person=people.get(name);
+        Object.entries(emp.shifts||{}).forEach(([day,value])=>{
+          const raw=String(value??'').trim();
+          if(!raw||raw.toLocaleUpperCase('ru-RU')==='В')return;
+          person.shifts[Number(day)]=raw;
+        });
       });
     });
-    if(!count){
-      const none=document.createElement('div');
-      none.className='small muted';
-      none.textContent='Нет смен';
-      card.append(none);
-    }
-    grid.append(card);
-  }
-  root.append(grid);
-}
 
+    const section=document.createElement('section');
+    section.className='schedule-roster';
+    const heading=document.createElement('h3');
+    heading.className='schedule-roster-title';
+    heading.textContent=storeName;
+    section.append(heading);
+
+    const wrap=document.createElement('div');
+    wrap.className='schedule-roster-wrap';
+    const table=document.createElement('table');
+    table.className='schedule-roster-table';
+    const thead=document.createElement('thead');
+    const headRow=document.createElement('tr');
+    const nameHead=document.createElement('th');
+    nameHead.className='schedule-roster-name';
+    nameHead.textContent='Сотрудник';
+    headRow.append(nameHead);
+    for(let day=1;day<=daysInMonth;day++){
+      const date=new Date(month.year,month.month-1,day);
+      const th=document.createElement('th');
+      th.className=(date.getDay()===0||date.getDay()===6)?'weekend':'';
+      th.textContent=day;
+      headRow.append(th);
+    }
+    thead.append(headRow);
+    table.append(thead);
+
+    const tbody=document.createElement('tbody');
+    [...people.values()].sort((a,b)=>a.name.localeCompare(b.name,'ru')).forEach(person=>{
+      const row=document.createElement('tr');
+      const nameCell=document.createElement('th');
+      nameCell.className='schedule-roster-name';
+      nameCell.scope='row';
+      nameCell.textContent=person.name;
+      row.append(nameCell);
+      for(let day=1;day<=daysInMonth;day++){
+        const date=new Date(month.year,month.month-1,day);
+        const td=document.createElement('td');
+        if(date.getDay()===0||date.getDay()===6)td.className='weekend';
+        const shift=person.shifts[day];
+        if(shift){
+          const badge=document.createElement('span');
+          badge.className='schedule-roster-shift';
+          badge.textContent=shift;
+          td.append(badge);
+          td.title=person.name+' · '+day+' '+month.name+': '+shift;
+        }else{
+          td.classList.add('schedule-roster-empty');
+          td.textContent='—';
+        }
+        row.append(td);
+      }
+      tbody.append(row);
+    });
+    if(!people.size){
+      const row=document.createElement('tr');
+      const cell=document.createElement('td');
+      cell.colSpan=daysInMonth+1;
+      cell.textContent='Сотрудники в графике не указаны.';
+      row.append(cell);tbody.append(row);
+    }
+    table.append(tbody);
+    wrap.append(table);
+    section.append(wrap);
+    root.append(section);
+  });
+}
 async function showHistory(){
   if(profile?.role==='admin'){await showAdminHistory();return;}
   setActiveNav('historyNav');
