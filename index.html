@@ -146,6 +146,7 @@ body.sms-modal-open{overflow:hidden}
 .schedule-roster-table th:last-child,.schedule-roster-table td:last-child{border-right:0}
 @media(max-width:560px){.schedule-roster-table th,.schedule-roster-table td{min-width:36px;height:40px;padding:4px 3px}.schedule-roster-table .schedule-roster-name{min-width:112px;max-width:112px;font-size:11px}.schedule-roster-shift{font-size:9px;min-width:27px}}
 
+.sms-admin-order-row{display:flex;align-items:stretch;gap:7px;margin:7px 0}.sms-admin-order-row .section-button{flex:1;min-width:0;margin:0}.sms-admin-delete{flex:0 0 auto;padding:8px 10px;font-size:12px}
 </style>
 </head>
 <body>
@@ -219,7 +220,7 @@ body.sms-modal-open{overflow:hidden}
       <div class="admin-detail-heading"><h2 id="adminWorkdayName"></h2><div id="adminWorkdayMeta" class="muted"></div></div>
       <div class="admin-detail-progress"><div class="row"><strong>Общий прогресс</strong><strong id="adminWorkdayPercent"></strong></div><div class="progress"><div id="adminWorkdayBar"></div></div>
       <div class="admin-counts"><div class="admin-count done"><strong id="adminCountDone">0</strong><span>Выполнено</span></div><div class="admin-count failed"><strong id="adminCountFailed">0</strong><span>Не выполнено</span></div><div class="admin-count pending"><strong id="adminCountPending">0</strong><span>Не обработано</span></div></div></div>
-      <h3>Разделы чек-листа</h3><div id="adminWorkdaySections"></div></section>
+      <h3>Разделы чек-листа</h3><div id="adminWorkdaySections"></div><button class="danger" type="button" style="width:100%;margin-top:16px" onclick="deleteAdminWorkday(adminSelectedWorkday)">Удалить этот чек-лист</button></section>
     <section id="adminHistoryPage" class="card hidden">
       <div class="row"><h2>История рабочих дней</h2><button id="adminHistorySearchToggle" class="admin-history-search" type="button" onclick="toggleAdminHistoryFilters()" aria-label="Открыть поиск и фильтры" aria-expanded="false" title="Поиск и фильтры">🔍</button></div>
       <div id="adminHistoryFilters" class="admin-history-filters hidden">
@@ -1576,7 +1577,9 @@ function renderAdminDashboardList(){
       const prog=document.createElement("span");prog.className="admin-row-progress";prog.innerHTML='<span class="progress"><span style="width:'+p.percent+'%"></span></span><small>'+p.percent+'% · '+p.done+'/'+p.total+'</small>';
       row.append(top,meta,prog);row.onclick=()=>openAdminWorkday(item);
       const edit=document.createElement("button");edit.type="button";edit.className="secondary";edit.textContent="Изменить время";edit.style.width="100%";edit.style.marginTop="8px";edit.onclick=()=>editAdminArrival(item);
-      wrap.append(row,edit);root.append(wrap);
+      wrap.append(row,edit);
+      const del=document.createElement("button");del.type="button";del.className="danger";del.textContent="Удалить чек-лист";del.style.width="100%";del.style.marginTop="6px";del.onclick=()=>deleteAdminWorkday(item);
+      wrap.append(del);root.append(wrap);
     });
   });
 }
@@ -1986,8 +1989,12 @@ async function openSmsCustomer(id,orderId=null){
     root.innerHTML='<div class="sms-customer-modal" role="presentation" onclick="if(event.target===this)closeSmsCustomer()"><div class="sms-customer-dialog" role="dialog" aria-modal="true" aria-label="Карточка клиента"><div class="sms-modal-close"><button type="button" onclick="closeSmsCustomer()" aria-label="Закрыть окно">×</button></div><div class="card"><h2>'+smsEsc(smsCustomer.full_name)+'</h2><p class="muted">'+smsEsc(smsCustomer.phone)+' · '+smsAgo(smsCustomer.last_activity_at)+'</p><p>'+smsEsc(smsCustomer.comment||'Комментарий не указан')+'</p><h3>Заказы</h3><div id="smsOrderList"></div><input id="smsAddOrderNumber" placeholder="Номер нового заказа"><button class="secondary" onclick="addSmsOrder()">Добавить заказ</button></div></div></div>';
     const list=$('smsOrderList');
     (o.data||[]).forEach(item=>{
-      const b=document.createElement('button');b.className='section-button';b.innerHTML='<span><strong>Заказ №'+smsEsc(item.order_number)+'</strong><small>Создан '+new Date(item.created_at).toLocaleDateString('ru-RU')+'</small></span><span>Выбрать</span>';b.onclick=()=>selectSmsOrder(item.id);list.append(b);
+      const row=document.createElement('div');row.className='sms-admin-order-row';
+      const b=document.createElement('button');b.className='section-button';b.innerHTML='<span><strong>Заказ №'+smsEsc(item.order_number)+'</strong><small>Создан '+new Date(item.created_at).toLocaleDateString('ru-RU')+'</small></span><span>Выбрать</span>';b.onclick=()=>selectSmsOrder(item.id);row.append(b);
+      if(profile?.role==='admin'){const del=document.createElement('button');del.type='button';del.className='danger sms-admin-delete';del.textContent='Удалить';del.onclick=()=>deleteAdminSmsOrder(item.id,item.order_number);row.append(del);}
+      list.append(row);
     });
+    if(profile?.role==='admin'){const delCustomer=document.createElement('button');delCustomer.type='button';delCustomer.className='danger';delCustomer.style.width='100%';delCustomer.style.marginTop='12px';delCustomer.textContent='Удалить карточку клиента и все его заказы';delCustomer.onclick=()=>deleteAdminSmsCustomer(smsCustomer.id,smsCustomer.full_name);root.querySelector('.sms-customer-dialog .card').append(delCustomer);}
     let targetOrderId=orderId||null;
     if(!targetOrderId&&(o.data||[]).length){
       const orderIds=o.data.map(x=>x.id);
@@ -2005,6 +2012,45 @@ function closeSmsCustomer(){
   document.body.classList.remove('sms-modal-open');smsCustomer=null;smsOrder=null;smsLines=[];
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('smsCustomerDetails')?.classList.contains('hidden'))closeSmsCustomer();});
+async function deleteAdminWorkday(item){
+  if(profile?.role!=='admin'||!item?.id)return;
+  const label=(item.employees?.full_name||'Сотрудник')+' · '+dateLabel(item.work_date);
+  if(!confirm('Удалить чек-лист сотрудника?\\n\\n'+label+'\\n\\nБудут удалены все ответы и комментарии этой смены. Действие нельзя отменить.'))return;
+  try{
+    const {data,error}=await sb.rpc('admin_delete_workday',{p_workday_id:item.id});
+    if(error)throw error;
+    if(!data)throw new Error('Чек-лист не найден или уже удалён.');
+    adminDashboardRows=adminDashboardRows.filter(x=>x.id!==item.id);
+    adminHistoryRows=adminHistoryRows.filter(x=>x.id!==item.id);
+    adminSelectedWorkday=null;
+    if(!$('adminWorkdayPage').classList.contains('hidden'))backToAdminList();
+    renderAdminDashboardList();
+    if(!$('adminHistoryPage').classList.contains('hidden'))renderAdminHistoryRows();
+    msg('Чек-лист удалён.','notice success');
+  }catch(e){msg('Не удалось удалить чек-лист: '+e.message,'notice error');}
+}
+async function deleteAdminSmsOrder(orderId,orderNumber){
+  if(profile?.role!=='admin'||!orderId)return;
+  if(!confirm('Удалить заказ №'+orderNumber+'?\\n\\nВместе с ним будут удалены все связанные переписки и сообщения. Действие нельзя отменить.'))return;
+  try{
+    const {error}=await sb.from('sms_orders').delete().eq('id',orderId);
+    if(error)throw error;
+    if(smsCustomer?.id)await openSmsCustomer(smsCustomer.id);
+    await loadSmsLineBoards();
+    msg('Заказ и связанные переписки удалены.','notice success');
+  }catch(e){msg('Не удалось удалить заказ: '+e.message,'notice error');}
+}
+async function deleteAdminSmsCustomer(customerId,customerName){
+  if(profile?.role!=='admin'||!customerId)return;
+  if(!confirm('Удалить клиента «'+customerName+'»?\\n\\nБудут удалены карточка клиента, все его заказы, линии переписки и сообщения. Действие нельзя отменить.'))return;
+  try{
+    const {error}=await sb.from('sms_customers').delete().eq('id',customerId);
+    if(error)throw error;
+    closeSmsCustomer();
+    await loadSmsLineBoards();
+    msg('Клиент и все связанные данные удалены.','notice success');
+  }catch(e){msg('Не удалось удалить клиента: '+e.message,'notice error');}
+}
 async function addSmsOrder(){
   const n=$('smsAddOrderNumber').value.trim();if(!n||!smsCustomer)return;
   const r=await sb.from('sms_orders').insert({customer_id:smsCustomer.id,order_number:n}).select('id').single();
