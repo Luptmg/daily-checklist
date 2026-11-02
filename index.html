@@ -147,6 +147,7 @@ body.sms-modal-open{overflow:hidden}
 @media(max-width:560px){.schedule-roster-table th,.schedule-roster-table td{min-width:36px;height:40px;padding:4px 3px}.schedule-roster-table .schedule-roster-name{min-width:112px;max-width:112px;font-size:11px}.schedule-roster-shift{font-size:9px;min-width:27px}}
 
 .sms-admin-order-row{display:flex;align-items:stretch;gap:7px;margin:7px 0}.sms-admin-order-row .section-button{flex:1;min-width:0;margin:0}.sms-admin-delete{flex:0 0 auto;padding:8px 10px;font-size:12px}
+.sms-name-gender-row{display:flex;gap:7px;align-items:center}.sms-name-gender-row input{flex:1;min-width:0}.sms-name-gender-row select{flex:0 0 88px;width:88px;padding-left:8px;padding-right:22px}
 </style>
 </head>
 <body>
@@ -295,7 +296,7 @@ body.sms-modal-open{overflow:hidden}
       <div id="smsCreateArea" class="hidden">
         <div class="sms-create-heading"><h3>Новая карточка</h3><button class="primary sms-create-toggle" type="button" onclick="toggleSmsCreateForm(false)" aria-label="Закрыть форму">×</button></div>
         <div id="smsCreateCard" class="card sms-create-form">
-          <input id="smsNewName" placeholder="Имя клиента">
+          <div class="sms-name-gender-row"><input id="smsNewName" placeholder="Имя клиента"><select id="smsNewGender" aria-label="Пол клиента"><option value="male">Муж.</option><option value="female">Жен.</option></select></div>
           <input id="smsNewPhone" type="tel" placeholder="Номер телефона">
           <input id="smsNewOrder" placeholder="Номер заказа">
           <textarea id="smsNewComment" placeholder="Комментарий (необязательно)" rows="2"></textarea>
@@ -1752,7 +1753,7 @@ ${d.link2? '📎  Конфигурация №2 — '+d.link2+'\n':''}
 команда MЕТТА
 📌  ТЦ «${d.store}»
 📞  ${d.phone}`},
-  warehouse_pickup:{name:'На складе самовывоз',start:true,text:(d)=>`Уважаемый ${d.name}!
+  warehouse_pickup:{name:'На складе самовывоз',start:true,text:(d)=>`${d.greeting} ${d.name}!
 
 📦 Ваш заказ находится на складе компании MЕТТА по адресу:
 ${d.address}
@@ -1939,7 +1940,7 @@ async function createSmsCustomerOrder(){
     if(found.data){msg('Клиент с таким телефоном уже существует. Открой его через поиск и добавь заказ.','notice error');await openSmsCustomer(found.data.id);return;}
     const customerId=crypto.randomUUID();
     smsCreateStep='создание карточки клиента';
-    const c=await sb.from('sms_customers').insert({id:customerId,full_name:name,phone,phone_normalized:digits,comment:$('smsNewComment').value.trim()||null,primary_store_id:day.store_id,created_by_employee_id:employee.id});
+    const c=await sb.from('sms_customers').insert({id:customerId,full_name:name,phone,phone_normalized:digits,comment:$('smsNewComment').value.trim()||null,gender:$('smsNewGender').value,primary_store_id:day.store_id,created_by_employee_id:employee.id});
     if(c.error)throw c.error;
     smsCreateStep='создание заказа';
     const o=await sb.from('sms_orders').insert({customer_id:customerId,order_number:order}).select('id').single();
@@ -1978,7 +1979,7 @@ async function openSmsCustomer(id,orderId=null){
   try{
     if(!id||id==='undefined'||id==='null')throw new Error('Не передан ID клиента.');
     step='загрузка карточки клиента';
-    const r=await sb.from('sms_customers').select('id,full_name,phone,comment,primary_store_id,last_activity_at,creator:employees!sms_customers_created_by_employee_id_fkey(full_name)').eq('id',id).single();
+    const r=await sb.from('sms_customers').select('id,full_name,phone,comment,gender,primary_store_id,last_activity_at,creator:employees!sms_customers_created_by_employee_id_fkey(full_name)').eq('id',id).single();
     if(r.error)throw r.error;
     smsCustomer=r.data;
     step='загрузка заказов клиента';
@@ -1986,7 +1987,7 @@ async function openSmsCustomer(id,orderId=null){
     if(o.error)throw o.error;
     const root=$('smsCustomerDetails');
     root.classList.remove('hidden');document.body.classList.add('sms-modal-open');
-    root.innerHTML='<div class="sms-customer-modal" role="presentation" onclick="if(event.target===this)closeSmsCustomer()"><div class="sms-customer-dialog" role="dialog" aria-modal="true" aria-label="Карточка клиента"><div class="sms-modal-close"><button type="button" onclick="closeSmsCustomer()" aria-label="Закрыть окно">×</button></div><div class="card"><h2>'+smsEsc(smsCustomer.full_name)+'</h2><p class="muted">'+smsEsc(smsCustomer.phone)+' · '+smsAgo(smsCustomer.last_activity_at)+'</p><p>'+smsEsc(smsCustomer.comment||'Комментарий не указан')+'</p><h3>Заказы</h3><div id="smsOrderList"></div><input id="smsAddOrderNumber" placeholder="Номер нового заказа"><button class="secondary" onclick="addSmsOrder()">Добавить заказ</button></div></div></div>';
+    root.innerHTML='<div class="sms-customer-modal" role="presentation" onclick="if(event.target===this)closeSmsCustomer()"><div class="sms-customer-dialog" role="dialog" aria-modal="true" aria-label="Карточка клиента"><div class="sms-modal-close"><button type="button" onclick="closeSmsCustomer()" aria-label="Закрыть окно">×</button></div><div class="card"><h2>'+smsEsc(smsCustomer.full_name)+'</h2><label class="small" for="smsCustomerGender">Пол клиента</label><select id="smsCustomerGender" onchange="updateSmsCustomerGender(this.value)"><option value="male" '+(smsCustomer.gender!=='female'?'selected':'')+'>Мужской</option><option value="female" '+(smsCustomer.gender==='female'?'selected':'')+'>Женский</option></select><p class="muted">'+smsEsc(smsCustomer.phone)+' · '+smsAgo(smsCustomer.last_activity_at)+'</p><p>'+smsEsc(smsCustomer.comment||'Комментарий не указан')+'</p><h3>Заказы</h3><div id="smsOrderList"></div><input id="smsAddOrderNumber" placeholder="Номер нового заказа"><button class="secondary" onclick="addSmsOrder()">Добавить заказ</button></div></div></div>';
     const list=$('smsOrderList');
     (o.data||[]).forEach(item=>{
       const row=document.createElement('div');row.className='sms-admin-order-row';
@@ -2004,6 +2005,14 @@ async function openSmsCustomer(id,orderId=null){
     }
     if(targetOrderId){step='открытие действующей линии';await selectSmsOrder(targetOrderId);}
   }catch(e){msg('Не удалось открыть карточку (этап: '+step+'): '+e.message,'notice error');}
+}
+async function updateSmsCustomerGender(value){
+  if(!smsCustomer||!['male','female'].includes(value))return;
+  const previous=smsCustomer.gender||'male';
+  smsCustomer.gender=value;
+  const {error}=await sb.from('sms_customers').update({gender:value}).eq('id',smsCustomer.id);
+  if(error){smsCustomer.gender=previous;msg('Не удалось сохранить пол клиента: '+error.message,'notice error');return;}
+  previewSms();
 }
 function closeSmsOrderView(){const modal=$('smsOrderModal');if(modal)modal.remove();smsOrder=null;smsLines=[];}
 function closeSmsCustomer(){
@@ -2116,6 +2125,7 @@ function previewSms(){
   const managerFullName=employee?.full_name||profile?.full_name||'';
   const employeeName=smsManagerFirstName(managerFullName);
   const customerName=smsCustomer?.full_name||'';
+  const greeting=smsCustomer?.gender==='female'?'Уважаемая':'Уважаемый';
   const city=store.warehouse_city||store.city||'';
   const cityGenitive=city==='Екатеринбург'?'Екатеринбурга':city==='Краснодар'?'Краснодара':city;
   const data={
