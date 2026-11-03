@@ -2438,9 +2438,11 @@ if(!configured){
   $('configWarning').classList.remove('hidden');
   $('auth').classList.add('hidden');
 }else{
-  sb.auth.onAuthStateChange((_event,session)=>{
-    if(!session){hideApp();return;}
-    setTimeout(()=>boot().catch(err=>msg(err.message||String(err),'notice error')),0);
+  sb.auth.onAuthStateChange((event,session)=>{
+    // TOKEN_REFRESHED и другие события не должны заново запускать boot():
+    // это сбрасывает открытый экран при возвращении во вкладку.
+    if(event==='SIGNED_OUT'||!session){hideApp();return;}
+    // Первичную загрузку выполняет getSession ниже, вход — обработчик формы.
   });
 
   sb.auth.getSession().then(({data})=>{
