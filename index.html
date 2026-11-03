@@ -1612,6 +1612,7 @@ function openAdminHistoryModal(item){
   $('adminHistoryModalTitle').textContent=(item.employees?.full_name||'Сотрудник')+' · '+dateLabel(item.work_date);
   const body=$('adminHistoryModalBody');body.innerHTML='';
   const meta=document.createElement('p');meta.className='muted';meta.textContent=(item.stores?.name||'Магазин')+' · '+(item.checked_in_at?'Приход: '+new Date(item.checked_in_at).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'}):'Приход не отмечен')+' · '+statusText;body.append(meta);
+  if(item.arrival_manually_edited){const edited=document.createElement('p');edited.className='small';edited.textContent='Изменено администратором';body.append(edited);}
   const dual=document.createElement('div');dual.className='admin-history-dual-progress';
   [{label:'Выполнение задач',value:p.percent,detail:p.done+'/'+p.total},{label:'Обработано задач',value:p.processedPercent,detail:p.processed+'/'+p.total}].forEach(x=>{
     const wrap=document.createElement('div'),head=document.createElement('div');head.className='row';const label=document.createElement('strong');label.textContent=x.label;const val=document.createElement('strong');val.textContent=x.value+'%';head.append(label,val);
@@ -1672,6 +1673,7 @@ function renderAdminHistoryRows(){
     else if(item.arrival_status==='on_time'){arrivalBadge.className='admin-history-arrival ontime';arrivalBadge.textContent='✓ Вовремя';}
     else{arrivalBadge.className='admin-history-arrival late';arrivalBadge.textContent='! Опоздание';}
     arrivalCell.append(arrivalBadge);
+    if(item.arrival_manually_edited){const edited=document.createElement('div');edited.className='small';edited.textContent='Изменено';arrivalCell.append(edited);}
     const st=document.createElement('td'),badge=document.createElement('span');badge.className='admin-history-status '+status;badge.textContent=status==='done'?'Завершена':status==='progress'?'В работе':'Не начата';st.append(badge);
     tr.append(name,date,prog,arrivalCell,st);tr.onclick=()=>openAdminHistoryModal(item);tr.onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();openAdminHistoryModal(item);}};tbody.append(tr);
   });
