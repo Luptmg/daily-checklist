@@ -140,6 +140,7 @@ body.sms-modal-open{overflow:hidden}
 .schedule-roster-table .schedule-roster-name{position:sticky;left:0;z-index:3;min-width:126px;max-width:150px;text-align:left;padding:7px 9px;background:var(--surface);white-space:normal}
 .schedule-roster-table thead .schedule-roster-name{z-index:4;background:var(--table-head)}
 .schedule-roster-table td.weekend,.schedule-roster-table thead th.weekend{background:var(--surface-soft)}
+.schedule-roster-table th.today,.schedule-roster-table td.today{background:var(--primary-soft);box-shadow:inset 0 0 0 2px var(--primary);font-weight:800}.schedule-roster-table td.today .schedule-roster-shift{outline:2px solid var(--primary);outline-offset:1px}
 .schedule-roster-table .schedule-roster-empty{color:var(--muted);opacity:.55}
 .schedule-roster-shift{display:inline-block;min-width:30px;padding:5px 3px;border-radius:6px;background:var(--success);color:var(--success-text);font-size:10px;font-weight:700}
 .schedule-roster-table tr:last-child th,.schedule-roster-table tr:last-child td{border-bottom:0}
@@ -1356,6 +1357,9 @@ function renderScheduleCalendar(){
 
     const section=document.createElement('section');
     section.className='schedule-roster';
+    const storeInfo=stores.find(x=>normalizeScheduleStoreName(x.name)===normalizeScheduleStoreName(storeName));
+    const todayForStore=todayKey(storeInfo?.timezone);
+    const todayDay=todayForStore.startsWith(month.id+'-')?Number(todayForStore.slice(-2)):0;
     const heading=document.createElement('h3');
     heading.className='schedule-roster-title';
     heading.textContent=storeName;
@@ -1375,7 +1379,9 @@ function renderScheduleCalendar(){
       const date=new Date(month.year,month.month-1,day);
       const th=document.createElement('th');
       th.className=(date.getDay()===0||date.getDay()===6)?'weekend':'';
+      if(day===todayDay)th.classList.add('today');
       th.textContent=day;
+      if(day===todayDay)th.title='Сегодня';
       headRow.append(th);
     }
     thead.append(headRow);
@@ -1392,7 +1398,8 @@ function renderScheduleCalendar(){
       for(let day=1;day<=daysInMonth;day++){
         const date=new Date(month.year,month.month-1,day);
         const td=document.createElement('td');
-        if(date.getDay()===0||date.getDay()===6)td.className='weekend';
+        if(date.getDay()===0||date.getDay()===6)td.classList.add('weekend');
+        if(day===todayDay)td.classList.add('today');
         const shift=person.shifts[day];
         if(shift){
           const badge=document.createElement('span');
