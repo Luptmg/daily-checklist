@@ -1998,7 +1998,7 @@ async function openSmsCustomer(id,orderId=null){
     if(o.error)throw o.error;
     const root=$('smsCustomerDetails');
     root.classList.remove('hidden');document.body.classList.add('sms-modal-open');
-    root.innerHTML='<div class="sms-customer-modal" role="presentation" onclick="if(event.target===this)closeSmsCustomer()"><div class="sms-customer-dialog" role="dialog" aria-modal="true" aria-label="Карточка клиента"><div class="sms-modal-close"><button type="button" onclick="closeSmsCustomer()" aria-label="Закрыть окно">×</button></div><div class="card"><h2>'+smsEsc(smsCustomer.full_name)+'</h2><label class="small" for="smsCustomerGender">Пол клиента</label><select id="smsCustomerGender" onchange="updateSmsCustomerGender(this.value)"><option value="male" '+(smsCustomer.gender!=='female'?'selected':'')+'>Мужской</option><option value="female" '+(smsCustomer.gender==='female'?'selected':'')+'>Женский</option></select><p class="muted">'+smsEsc(smsCustomer.phone)+' · '+smsAgo(smsCustomer.last_activity_at)+'</p><p>'+smsEsc(smsCustomer.comment||'Комментарий не указан')+'</p><h3>Заказы</h3><div id="smsOrderList"></div><input id="smsAddOrderNumber" placeholder="Номер нового заказа"><button class="secondary" onclick="addSmsOrder()">Добавить заказ</button></div></div></div>';
+    root.innerHTML='<div class="sms-customer-modal" role="presentation" onclick="if(event.target===this)closeSmsCustomer()"><div class="sms-customer-dialog" role="dialog" aria-modal="true" aria-label="Карточка клиента"><div class="sms-modal-close"><button type="button" onclick="closeSmsCustomer()" aria-label="Закрыть окно">×</button></div><div class="card"><h2>Карточка клиента</h2><label class="small" for="smsCustomerName">Имя клиента</label><div class="sms-name-gender-row"><input id="smsCustomerName" value="'+smsEsc(smsCustomer.full_name)+'" maxlength="120" placeholder="Имя клиента"><button type="button" class="secondary" onclick="updateSmsCustomerName()">Сохранить</button></div><label class="small" for="smsCustomerGender">Пол клиента</label><select id="smsCustomerGender" onchange="updateSmsCustomerGender(this.value)"><option value="male" '+(smsCustomer.gender!=='female'?'selected':'')+'>Мужской</option><option value="female" '+(smsCustomer.gender==='female'?'selected':'')+'>Женский</option></select><p class="muted">'+smsEsc(smsCustomer.phone)+' · '+smsAgo(smsCustomer.last_activity_at)+'</p><p>'+smsEsc(smsCustomer.comment||'Комментарий не указан')+'</p><h3>Заказы</h3><div id="smsOrderList"></div><input id="smsAddOrderNumber" placeholder="Номер нового заказа"><button class="secondary" onclick="addSmsOrder()">Добавить заказ</button></div></div></div>';
     const list=$('smsOrderList');
     (o.data||[]).forEach(item=>{
       const row=document.createElement('div');row.className='sms-admin-order-row';
@@ -2016,6 +2016,29 @@ async function openSmsCustomer(id,orderId=null){
     }
     if(targetOrderId){step='открытие действующей линии';await selectSmsOrder(targetOrderId);}
   }catch(e){msg('Не удалось открыть карточку (этап: '+step+'): '+e.message,'notice error');}
+}
+async function updateSmsCustomerName(){
+  if(!smsCustomer)return;
+  const input=$('smsCustomerName');
+  const name=input?.value.trim()||'';
+  if(!name){msg('Имя клиента не может быть пустым.','notice error');input?.focus();return;}
+  if(name===smsCustomer.full_name)return;
+  const previous=smsCustomer.full_name;
+  const button=input?.parentElement?.querySelector('button');
+  if(button)button.disabled=true;
+  try{
+    const {data,error}=await sb.from('sms_customers').update({full_name:name}).eq('id',smsCustomer.id).select('id,full_name').single();
+    if(error)throw error;
+    smsCustomer.full_name=data.full_name;
+    input.value=data.full_name;
+    await loadSmsLineBoards();
+    previewSms();
+    msg('Имя клиента сохранено.','notice success');
+  }catch(e){
+    smsCustomer.full_name=previous;
+    if(input)input.value=previous;
+    msg('Не удалось изменить имя клиента: '+e.message,'notice error');
+  }finally{if(button)button.disabled=false;}
 }
 async function updateSmsCustomerGender(value){
   if(!smsCustomer||!['male','female'].includes(value))return;
