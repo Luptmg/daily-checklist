@@ -2392,8 +2392,8 @@ function toggleSmsCreateForm(open){
 async function loadSmsLineBoards(){
   const root=$('smsLineBoards');if(!root)return;root.innerHTML='Загружаю заказы…';
   try{
-    // Список строится от заказов, а не от линий: заказ без переписки
-    // остаётся действующим и не попадает в завершённые.
+    // Список строится от заказов, но завершённые элементы формируются
+    // отдельно по каждой личной линии сотрудника.
     const q=sb.from('sms_orders').select('id,order_number,created_at,customer_id,sms_customers(id,full_name,phone,primary_store_id,created_by_employee_id),sms_lines(id,line_kind,status,initial_stage,current_stage,last_action_at,store_id,created_by_employee_id,completed_by_employee_id,stores(name),creator:employees!sms_lines_created_by_employee_id_fkey(full_name),sms_messages(id,copied_by_employee_id))').order('created_at',{ascending:false}).limit(500);
     const r=await q;if(r.error)throw r.error;
     const storeFilter=profile?.role==='employee'?(day?.store_id||employee?.primary_store_id||''):($('smsAdminStore')?.value||'');
@@ -2401,16 +2401,31 @@ async function loadSmsLineBoards(){
     const rows=(r.data||[]).map(order=>{
       const lines=(order.sms_lines||[]).filter(line=>(line.sms_messages||[]).length>0);
       const activeLines=lines.filter(line=>line.status==='active');
-      const completed=lines.length>0&&activeLines.length===0;
+      // Личная линия определяется её владельцем — сотрудником,
+      // указанным в created_by_employee_id. Общие линии других сотрудников
+      // не попадают в личный список завершённых текущего сотрудника.
+      const completedPersonalLines=lines.filter(line=>
+        line.status==='completed'&&
+        !!line.created_by_employee_id&&
+        (profile?.role==='admin'
+          ?(!employeeFilter||line.created_by_employee_id===employeeFilter)
+          :line.created_by_employee_id===employee?.id)&&
+        (!storeFilter||line.store_id===storeFilter)
+      );
       const latest=[...lines].sort((a,b)=>new Date(b.last_action_at||b.created_at||0)-new Date(a.last_action_at||a.created_at||0))[0]||null;
       const ownerIds=lines.flatMap(line=>[line.created_by_employee_id,line.completed_by_employee_id,...(line.sms_messages||[]).map(m=>m.copied_by_employee_id)]).filter(Boolean);
       const isMine=profile?.role==='employee'
         ?(ownerIds.includes(employee?.id)||order.sms_customers?.created_by_employee_id===employee?.id):true;
       const matchesStore=!storeFilter||order.sms_customers?.primary_store_id===storeFilter||lines.some(line=>line.store_id===storeFilter)||isMine;
       const matchesEmployee=!employeeFilter||ownerIds.includes(employeeFilter)||(!lines.length&&order.sms_customers?.created_by_employee_id===employeeFilter);
-      return {...order,_lines:lines,_activeLines:activeLines,_latest:latest,_completed:completed,_mine:isMine,_matchesStore:matchesStore,_matchesEmployee:matchesEmployee};
+      return {...order,_lines:lines,_activeLines:activeLines,_latest:latest,_completedPersonalLines:completedPersonalLines,_mine:isMine,_matchesStore:matchesStore,_matchesEmployee:matchesEmployee};
     }).filter(order=>order._matchesStore&&order._matchesEmployee);
-    const active=rows.filter(order=>!order._completed),done=rows.filter(order=>order._completed);
+
+    // Активные заказы остаются в прежних категориях.
+    const active=rows.filter(order=>order._activeLines.length>0);
+    // Завершённые показываются по одной карточке на каждую завершённую
+    // личную линию, даже если в этом же заказе есть другая активная линия.
+    const done=rows.flatMap(order=>order._completedPersonalLines.map(line=>({...order,_boardLine:line})));
     const mine=profile?.role==='employee'?active.filter(order=>order._mine):active;
     const storeOnly=profile?.role==='employee'?active.filter(order=>!order._mine):[];
     const groups=profile?.role==='employee'
@@ -2427,12 +2442,13 @@ async function loadSmsLineBoards(){
     const selected=groups.find(g=>g.id===smsBoardTab);
     if(!selected.list.length){const p=document.createElement('p');p.className='muted sms-board-empty';p.textContent='В этой категории пока нет заказов.';root.append(p);return;}
     selected.list.forEach(order=>{
-      const customer=order.sms_customers,latest=order._activeLines[0]||order._latest;
-      const stage=latest
-        ?((latest.initial_stage==='configuration'&&latest.current_stage!=='configuration'?'Конфигурация → ':'')+(smsTemplates[latest.current_stage]?.name||smsTemplates[latest.initial_stage]?.name||latest.current_stage))
+      const customer=order.sms_customers;
+      const line=order._boardLine||order._activeLines[0]||order._latest;
+      const stage=line
+        ?((line.initial_stage==='configuration'&&line.current_stage!=='configuration'?'Конфигурация → ':'')+(smsTemplates[line.current_stage]?.name||smsTemplates[line.initial_stage]?.name||line.current_stage))
         :'Сообщения ещё не копировались';
-      const meta=[stage,latest?.stores?.name||'',smsAgo(latest?.last_action_at||order.created_at)];
-      if(profile?.role==='admin'&&latest?.creator?.full_name)meta.push(latest.creator.full_name);
+      const meta=[order._boardLine?'Личная линия':'',stage,line?.stores?.name||'',smsAgo(line?.last_action_at||order.created_at)].filter(Boolean);
+      if(profile?.role==='admin'&&line?.creator?.full_name)meta.push(line.creator.full_name);
       const b=document.createElement('button');b.className='section-button';
       b.innerHTML='<span><strong>'+smsEsc(customer?.full_name||'Клиент')+' · Заказ №'+smsEsc(order.order_number||'')+'</strong><small>'+meta.map(smsEsc).join(' · ')+'</small></span><span>Открыть</span>';
       b.onclick=()=>openSmsCustomer(customer?.id,order.id);root.append(b);
